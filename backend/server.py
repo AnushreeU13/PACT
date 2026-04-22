@@ -45,7 +45,7 @@ GPT_MODEL_ID = "gpt-4o-mini"
 
 LOCAL_LLM_MODEL_NAME = os.environ.get(
     "LOCAL_LLM_MODEL_NAME",
-    "llama3.1:8b",
+    "llama-3.1-8b-instant",
 )
 
 

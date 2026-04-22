@@ -85,6 +85,23 @@ _local_llama_loading = False
 _local_llama_load_error: str | None = None
 _local_llama_ready_event = threading.Event()
 
+
+@app.on_event("startup")
+async def startup_event():
+    """Auto-load the Groq client on server startup (fast — just validates API key)."""
+    global _local_llama_loading, _local_llama_load_error
+    try:
+        local_llama.load_model()
+        local_llama.load_au_probe("")
+        _local_llama_load_error = None
+        _local_llama_ready_event.set()
+        print("Groq backend initialised on startup.")
+    except Exception as e:
+        _local_llama_load_error = str(e)
+        _local_llama_ready_event.set()  # unblock waiters so they get a proper error
+        print(f"Startup load failed: {e}")
+
+
 if local_llama.is_loaded():
     _local_llama_ready_event.set()
 

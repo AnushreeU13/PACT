@@ -272,6 +272,7 @@ def _process_chat(request: ChatRequest) -> dict:
 
     if use_sequential:
         final_prompt = sequential_redaction_pipeline(original_query, request.settings.model_dump())
+        candidates = [final_prompt]
         module_masks: dict = {}
         llama_trace = {
             "synthesis_mode": "sequential_redaction",

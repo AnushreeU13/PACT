@@ -13,6 +13,7 @@ import time
 # Import our financial detector
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from modules import local_llama
+from modules import identity_module, modules_geo, demographic_module, health_module
 from modules.pipeline_collect import collect_pipeline_inputs
 from modules.synthesis_prompt import (
     build_privacy_synthesis_prompt,
@@ -99,6 +100,17 @@ async def lifespan(app: FastAPI):
         _local_llama_load_error = str(e)
         _local_llama_ready_event.set()  # unblock waiters so they get a proper error
         print(f"Startup load failed: {e}")
+
+    # Pre-warm spaCy models so the first request isn't slow
+    print("Pre-warming spaCy NLP models...")
+    try:
+        identity_module._get_detector()
+        modules_geo._get_detector()
+        demographic_module._get_detector()
+        health_module._get_detector()
+        print("spaCy models ready.")
+    except Exception as e:
+        print(f"spaCy pre-warm warning (non-fatal): {e}")
     yield
 
 

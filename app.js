@@ -182,7 +182,7 @@ function appendPipelineTrace(container, trace) {
             font-weight:700;
             letter-spacing:0.02em;
             white-space:nowrap;
-        ">AU Score: ${score}% - ${auProbe.status.toUpperCase()}</span>`;
+        ">AU Score: ${score}% uncertainty</span>`;
     }
 
     sum.innerHTML = `<span>Pipeline: module masks - Groq - GPT</span>${badgeHtml}`;

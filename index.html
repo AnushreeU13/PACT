@@ -124,18 +124,12 @@
         </div>
 
         <div class="chat-input-area">
-            <div id="attachment-preview" style="display: none; margin-bottom: 8px; font-size: 0.8rem; background: rgba(94, 234, 212, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--accent-cyan); color: var(--accent-cyan);">
-                <span id="attached-filename"></span>
-                <button id="remove-attachment" style="background: none; border: none; color: #ff6b6b; cursor: pointer; margin-left: 10px; font-weight: bold;">X</button>
-            </div>
             <div class="input-wrapper">
                 <textarea id="user-input" placeholder="Type your message here... (e.g. My bank account number is...)" rows="1"></textarea>
                 <button type="button" id="send-btn">Send</button>
             </div>
             <div class="input-actions">
                 <button type="button" id="batch-from-file-btn" class="action-btn" title="Runs every query in data/queries.json on the server">Run data/queries.json</button>
-                <button type="button" id="attach-doc-btn" class="action-btn" title="Extract text from a PDF into the chat box">Attach PDF</button>
-                <input type="file" id="file-input" style="display: none;" accept=".pdf,.png,.jpg,.jpeg">
             </div>
             <p style="text-align: center; font-size: 0.7rem; color: var(--text-muted); margin-top: 1rem;">
                 Powered by spaCy & AU-Probe Uncertainty Logic

@@ -1,8 +1,13 @@
 import fitz  # PyMuPDF
-import pytesseract
 from PIL import Image
 import io
 import os
+
+try:
+    import pytesseract
+    _TESSERACT_AVAILABLE = True
+except Exception:
+    _TESSERACT_AVAILABLE = False
 
 def extract_text_from_file(file_content: bytes, filename: str) -> str:
     """
@@ -30,10 +35,13 @@ def _extract_from_pdf(content: bytes) -> str:
         for page in doc:
             page_text = page.get_text()
             # If a page has very little text, it might be a scanned image
-            if len(page_text.strip()) < 10:
+            if len(page_text.strip()) < 10 and _TESSERACT_AVAILABLE:
                 pix = page.get_pixmap()
                 img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-                page_text = pytesseract.image_to_string(img)
+                try:
+                    page_text = pytesseract.image_to_string(img)
+                except Exception:
+                    page_text = ""
             text += page_text + "\n"
         doc.close()
     except Exception as e:
@@ -42,6 +50,8 @@ def _extract_from_pdf(content: bytes) -> str:
 
 def _extract_from_image(content: bytes) -> str:
     """Perform OCR on image bytes."""
+    if not _TESSERACT_AVAILABLE:
+        return ""
     try:
         img = Image.open(io.BytesIO(content))
         return pytesseract.image_to_string(img)

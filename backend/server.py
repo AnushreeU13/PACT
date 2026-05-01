@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 import uvicorn
@@ -14,6 +14,7 @@ import time
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from modules import local_llama
 from modules import identity_module, modules_geo, demographic_module, health_module
+from modules.extract_docs import extract_text_from_file
 from modules.pipeline_collect import collect_pipeline_inputs
 from modules.synthesis_prompt import (
     build_privacy_synthesis_prompt,
@@ -521,6 +522,19 @@ async def chat_batch_from_file(body: BatchChatRequest | None = None):
 @app.post("/chat")
 async def chat_endpoint(request: ChatRequest):
     return _process_chat(request)
+
+
+@app.post("/extract/text")
+async def extract_text_endpoint(file: UploadFile = File(...)):
+    content = await file.read()
+    try:
+        text = extract_text_from_file(content, file.filename or "upload.pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="No text could be extracted from this file. It may be a scanned image without OCR support on this server.")
+    return {"text": text, "filename": file.filename}
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))

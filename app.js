@@ -127,9 +127,10 @@ async function sendMessage() {
     }
 }
 
+let _msgCounter = 0;
 function appendMessage(role, text) {
     const msgDiv = document.createElement('div');
-    const id = 'msg-' + Date.now();
+    const id = 'msg-' + (++_msgCounter);
     msgDiv.id = id;
     msgDiv.className = `message ${role}-message`;
     msgDiv.textContent = text;
@@ -184,7 +185,7 @@ function appendPipelineTrace(container, trace) {
         ">AU Score: ${score}% - ${auProbe.status.toUpperCase()}</span>`;
     }
 
-    sum.innerHTML = `<span>Pipeline: module masks - Local Llama - GPT</span>${badgeHtml}`;
+    sum.innerHTML = `<span>Pipeline: module masks - Groq - GPT</span>${badgeHtml}`;
 
     const body = document.createElement('div');
     body.style.marginTop = '10px';
@@ -306,7 +307,7 @@ function appendPipelineTrace(container, trace) {
     if (trace.local_llama) {
         const ll = trace.local_llama;
         const summary = `Mode: ${ll.synthesis_mode}\nOutput: ${ll.extracted_before_fallback || '-'}\nFallback: ${ll.used_fallback ? `YES (${ll.fallback_reason})` : 'No'}`;
-        body.appendChild(makeSection('Local Llama Synthesis', summary));
+        body.appendChild(makeSection('Groq Synthesis', summary));
     }
 
     // Module masks (compact)

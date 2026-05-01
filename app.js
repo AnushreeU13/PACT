@@ -594,6 +594,16 @@ userInput.addEventListener('keydown', (e) => {
     while (Date.now() < LOAD_DEADLINE_MS) {
         try {
             const statusResp = await fetch(BACKEND_URL + '/local-llama/status');
+            if (!statusResp.ok) {
+                consecutiveErrors++;
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    setText('Local Llama: status unavailable. (Check backend URL in config.js)', 'error');
+                    return;
+                }
+                setText(`Local Llama: backend unreachable (${statusResp.status}) — retrying… (${fmtElapsed()})`, 'loading');
+                await new Promise((r) => setTimeout(r, POLL_MS));
+                continue;
+            }
             const st = await statusResp.json().catch(() => ({}));
             consecutiveErrors = 0;
 

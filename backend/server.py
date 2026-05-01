@@ -235,6 +235,7 @@ class ChatRequest(BaseModel):
     query: str
     settings: ChatSettings
     api_key: str | None = None
+    au_threshold: float = 0.8
 
 
 class BatchChatRequest(BaseModel):
@@ -269,13 +270,15 @@ def _process_chat(request: ChatRequest) -> dict:
             print(f"AU Uncertainty calculation failed: {e}")
             au_score = 0.0
 
-    if au_score >= 0.8:
+    au_threshold = max(0.0, min(1.0, request.au_threshold))
+
+    if au_score >= au_threshold:
         response_text = (
             f"After redacting the information categories you selected, it looks like most of the "
             f"meaningful context has been removed from your query. Without enough detail, the AI is "
             f"likely to give you a vague or unhelpful response. Try rephrasing your query with more "
             f"context that you are comfortable sharing, or consider which privacy categories are "
-            f"strictly necessary to redact. (Uncertainty score: {au_score:.2f})"
+            f"strictly necessary to redact. (Uncertainty score: {au_score:.2f}, threshold: {au_threshold:.2f})"
         )
     else:
         response_text = _cloud_llm(final_prompt, api_key=request.api_key)
@@ -287,9 +290,9 @@ def _process_chat(request: ChatRequest) -> dict:
         "local_llama": llama_trace,
         "au_probe": {
             "score": round(au_score, 4),
-            "threshold": 0.8,
-            "triggered": au_score >= 0.8,
-            "status": "uncertain" if au_score >= 0.8 else "certain",
+            "threshold": au_threshold,
+            "triggered": au_score >= au_threshold,
+            "status": "uncertain" if au_score >= au_threshold else "certain",
         },
         "final_prompt_to_gpt": final_prompt,
     }

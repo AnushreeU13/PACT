@@ -71,10 +71,14 @@ async function sendMessage() {
             userApiKey = sessionStorage.getItem('pact_openai_key');
         }
         
+        const auThresholdEl = document.getElementById('au-threshold-select');
+        const auThreshold = auThresholdEl ? parseFloat(auThresholdEl.value) : 0.8;
+
         const payload = {
             query: fullQuery,
             is_document: !!currentAttachmentText,
             api_key: userApiKey,
+            au_threshold: auThreshold,
             settings: {
                 identity: toggles.identity.checked,
                 location: toggles.location.checked,

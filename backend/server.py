@@ -15,7 +15,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from modules import local_llama
 from modules import identity_module, modules_geo, demographic_module, health_module
 from modules.extract_docs import extract_text_from_file
-from modules.pipeline_collect import collect_pipeline_inputs
+from modules.pipeline_collect import collect_pipeline_inputs, sequential_redaction_pipeline
 from modules.synthesis_prompt import (
     build_privacy_synthesis_prompt,
     extract_final_prompt,
@@ -242,6 +242,10 @@ class ChatSettings(BaseModel):
     health: bool
     financial: bool
 
+# Queries longer than this go through sequential regex redaction instead of
+# Groq synthesis, avoiding the 6000 TPM free-tier limit.
+MAX_CHARS_FOR_GROQ_SYNTHESIS = 1500
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -249,6 +253,7 @@ class ChatRequest(BaseModel):
     settings: ChatSettings
     api_key: str | None = None
     au_threshold: float = 0.8
+    is_document: bool = False
 
 
 class BatchChatRequest(BaseModel):
@@ -263,17 +268,30 @@ class QueriesFile(BaseModel):
 
 def _process_chat(request: ChatRequest) -> dict:
     original_query = request.query
+    use_sequential = request.is_document or len(original_query) > MAX_CHARS_FOR_GROQ_SYNTHESIS
 
-    candidates, module_masks, financial_candidate = collect_pipeline_inputs(
-        original_query, request.settings.model_dump()
-    )
-
-    final_prompt, llama_trace = _local_synthesize_final_prompt(
-        original_query=original_query,
-        candidates=candidates,
-        privacy_preferences=request.settings.model_dump(),
-        financial_candidate=financial_candidate,
-    )
+    if use_sequential:
+        final_prompt = sequential_redaction_pipeline(original_query, request.settings.model_dump())
+        module_masks: dict = {}
+        llama_trace = {
+            "synthesis_mode": "sequential_redaction",
+            "model_name": None,
+            "synthesis_prompt": "",
+            "raw_model_output": "",
+            "extracted_before_fallback": final_prompt,
+            "used_fallback": False,
+            "fallback_reason": "large_input_bypass_groq",
+        }
+    else:
+        candidates, module_masks, financial_candidate = collect_pipeline_inputs(
+            original_query, request.settings.model_dump()
+        )
+        final_prompt, llama_trace = _local_synthesize_final_prompt(
+            original_query=original_query,
+            candidates=candidates,
+            privacy_preferences=request.settings.model_dump(),
+            financial_candidate=financial_candidate,
+        )
 
     au_score = 0.0
     if USE_LOCAL_LLAMA_FOR_SYNTHESIS:

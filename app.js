@@ -588,10 +588,14 @@ userInput.addEventListener('keydown', (e) => {
         return m > 0 ? `${m}m ${s}s` : `${s}s`;
     };
 
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 20; // ~50s of retries before giving up
+
     while (Date.now() < LOAD_DEADLINE_MS) {
         try {
             const statusResp = await fetch(BACKEND_URL + '/local-llama/status');
             const st = await statusResp.json().catch(() => ({}));
+            consecutiveErrors = 0;
 
             if (st.loaded) {
                 setText('Local Llama: ready.', 'ready');
@@ -620,9 +624,14 @@ userInput.addEventListener('keydown', (e) => {
 
             setText(`Local Llama: starting load… (${fmtElapsed()} elapsed)`);
         } catch (e) {
-            console.error('Local Llama status error:', e);
-            setText('Local Llama: status unavailable. (Check backend.)', 'error');
-            return;
+            consecutiveErrors++;
+            console.error(`Local Llama status error (attempt ${consecutiveErrors}):`, e);
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                setText('Local Llama: status unavailable. (Check backend.)', 'error');
+                return;
+            }
+            // Backend may still be cold-starting on Railway — keep retrying
+            setText(`Local Llama: backend starting up… (${fmtElapsed()} elapsed)`, 'loading');
         }
 
         await new Promise((r) => setTimeout(r, POLL_MS));

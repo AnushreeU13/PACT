@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
@@ -21,8 +22,6 @@ from modules.synthesis_prompt import (
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 QUERIES_JSON_PATH = os.path.join(ROOT_DIR, 'data', 'queries.json')
-
-app = FastAPI()
 
 def _require_env(name: str) -> str:
     value = os.environ.get(name)
@@ -69,7 +68,7 @@ def _local_llama_load_wait_timeout_sec() -> float | None:
     if raw in ("unlimited", "none", "inf", "infinite"):
         return None
     if raw == "":
-        return 21600.0
+        return 60.0  # Groq init is near-instant; 60s is generous
     try:
         v = float(raw)
     except ValueError:
@@ -86,8 +85,8 @@ _local_llama_load_error: str | None = None
 _local_llama_ready_event = threading.Event()
 
 
-@app.on_event("startup")
-async def startup_event():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     """Auto-load the Groq client on server startup (fast — just validates API key)."""
     global _local_llama_loading, _local_llama_load_error
     try:
@@ -100,10 +99,11 @@ async def startup_event():
         _local_llama_load_error = str(e)
         _local_llama_ready_event.set()  # unblock waiters so they get a proper error
         print(f"Startup load failed: {e}")
+    yield
 
 
-if local_llama.is_loaded():
-    _local_llama_ready_event.set()
+app = FastAPI(lifespan=lifespan)
+
 
 class LocalLlamaLoadRequest(BaseModel):
     model_name: str | None = None

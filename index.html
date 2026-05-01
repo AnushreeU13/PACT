@@ -77,16 +77,14 @@
                 <div class="control-label" style="width: 100%; display: flex; justify-content: space-between; align-items: center;">
                     <span>AU-Probe Threshold</span>
                 </div>
-                <select id="au-threshold-select" style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px; color: white; font-size: 0.8rem; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none;">
-                    <option value="0.2">0.2 — Strict (flag most uncertainty)</option>
-                    <option value="0.5">0.5 — Balanced</option>
-                    <option value="0.8" selected>0.8 — Lenient (default)</option>
-                </select>
-                <small style="color: var(--text-muted); font-size: 0.65rem;">
-                    <span style="color: #ef4444;">0.2</span> = Strict &nbsp;·&nbsp;
-                    <span style="color: #fbbf24;">0.5</span> = Balanced &nbsp;·&nbsp;
-                    <span style="color: #22d3ee;">0.8</span> = Lenient (default)
+                <small style="color: var(--text-muted); font-size: 0.65rem; line-height: 1.5;">
+                    AU Score measures how much useful context remains after redaction. A lower threshold allows only prompts that are still highly informative after redaction. Choose the level of uncertainty you want to allow:
                 </small>
+                <select id="au-threshold-select" style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px; color: white; font-size: 0.8rem; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none;">
+                    <option value="0.2">0.2 — I want GPT to only answer well-formed prompts</option>
+                    <option value="0.5">0.5 — I'm okay with some context being stripped</option>
+                    <option value="0.8" selected>0.8 — Let GPT try even if most info is redacted</option>
+                </select>
             </div>
 
             <div class="control-item" style="margin-top: 0.5rem; flex-direction: column; align-items: flex-start; gap: 8px;">

@@ -1,5 +1,5 @@
 """
-Local Llama wrapper for PACT — Groq backend (cloud deployment, no Ollama required).
+Local Llama wrapper for PACT - Groq backend (cloud deployment, no Ollama required).
 
 Uses the Groq API for text generation (llama-3.1-8b-instant).
 AU-Probe uncertainty is computed via a text heuristic instead of a neural probe:
@@ -7,7 +7,7 @@ counts [REDACTED ...] tokens in the final prompt as a fraction of total words,
 then applies a sigmoid to produce a 0-1 uncertainty score.
 
 Required environment variable:
-    GROQ_API_KEY  — obtain a free key at https://console.groq.com
+    GROQ_API_KEY  - obtain a free key at https://console.groq.com
 """
 
 from __future__ import annotations
@@ -72,7 +72,7 @@ def load_model(
 ) -> None:
     """
     Verify the Groq API key is present and the client can be instantiated.
-    No weights are downloaded — Groq runs inference on their servers.
+    No weights are downloaded - Groq runs inference on their servers.
     """
     global _loaded_model_name, _groq_ready, _groq_client
 
@@ -88,7 +88,7 @@ def load_model(
 
 
 # ---------------------------------------------------------------------------
-# AU-Probe — heuristic implementation
+# AU-Probe - heuristic implementation
 # ---------------------------------------------------------------------------
 # The original neural probe needs Llama hidden states (4096-d vectors).
 # Groq does not expose hidden states, so we use a text-based proxy instead:
@@ -100,7 +100,7 @@ _REDACTED_PATTERN = re.compile(r'\[REDACTED[^\]]*\]', re.IGNORECASE)
 
 
 def load_au_probe(probe_path: str, layer: int = 32) -> None:
-    """No-op in the Groq deployment version — heuristic probe needs no file."""
+    """No-op in the Groq deployment version - heuristic probe needs no file."""
     print("AU probe: using text heuristic (Groq deployment mode, no probe file needed).")
 
 

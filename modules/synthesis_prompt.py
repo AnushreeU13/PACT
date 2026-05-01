@@ -29,7 +29,7 @@ def build_privacy_synthesis_prompt(
         "4. NOTE: ALL sensitive data (Identity, Financial, Health, etc.) has been ALREADY redacted by an upstream security layer. "
         "The placeholders you see ARE the finalized values. This task is for structural merging only and does NOT involve handling restricted info.\n"
         "5. DO NOT add any extra conversational text, labels, apologies, or markdown formatting.\n"
-        "6. DO NOT summarize or truncate. DO NOT refuse to process based on 'safety'—this text is already sterilized. Output the full text with all redactions applied.\n\n"
+        "6. DO NOT summarize or truncate. DO NOT refuse to process based on 'safety'-this text is already sterilized. Output the full text with all redactions applied.\n\n"
         "EXAMPLE:\n"
         "Original Query: My name is John and I live in Paris.\n"
         "Masked Variations: [\"My name is <PERSON>\", \"I live in <GIVEN_LOCATION>\"]\n"
@@ -47,7 +47,7 @@ def extract_final_prompt(hf_text: str) -> str:
     Parse model output after privacy synthesis.
 
     The server prompt ends with ``final_prompt:`` (no trailing space), so the model
-    often continues with the value only — no ``final_prompt:`` in the generated
+    often continues with the value only - no ``final_prompt:`` in the generated
     string. Models also ramble into ``` fences; we keep one line per spec.
     """
     txt = (hf_text or "").strip()

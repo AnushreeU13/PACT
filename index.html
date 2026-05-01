@@ -81,9 +81,9 @@
                     AU Score measures how much useful context remains after redaction. A lower threshold allows only prompts that are still highly informative after redaction. Choose the level of uncertainty you want to allow:
                 </small>
                 <select id="au-threshold-select" style="width: 100%; background: rgba(15, 23, 42, 0.5); border: 1px solid var(--glass-border); border-radius: 8px; padding: 10px; color: white; font-size: 0.8rem; outline: none; cursor: pointer; appearance: none; -webkit-appearance: none;">
-                    <option value="0.2">0.2 — I want GPT to only answer well-formed prompts</option>
-                    <option value="0.5">0.5 — I'm okay with some context being stripped</option>
-                    <option value="0.8" selected>0.8 — Let GPT try even if most info is redacted</option>
+                    <option value="0.2">0.2: I want GPT to only answer well-formed prompts</option>
+                    <option value="0.5">0.5: I'm okay with some context being stripped</option>
+                    <option value="0.8" selected>0.8: Let GPT try even if most info is redacted</option>
                 </select>
             </div>
 
@@ -121,7 +121,7 @@
         <div class="chat-input-area">
             <div id="attachment-preview" style="display: none; margin-bottom: 8px; font-size: 0.8rem; background: rgba(94, 234, 212, 0.1); padding: 6px 10px; border-radius: 6px; border: 1px solid var(--accent-cyan); color: var(--accent-cyan);">
                 <span id="attached-filename"></span>
-                <button id="remove-attachment" style="background: none; border: none; color: #ff6b6b; cursor: pointer; margin-left: 10px; font-weight: bold;">✕</button>
+                <button id="remove-attachment" style="background: none; border: none; color: #ff6b6b; cursor: pointer; margin-left: 10px; font-weight: bold;">X</button>
             </div>
             <div class="input-wrapper">
                 <textarea id="user-input" placeholder="Type your message here... (e.g. My bank account number is...)" rows="1"></textarea>

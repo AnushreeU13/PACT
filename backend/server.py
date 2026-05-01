@@ -88,7 +88,7 @@ _local_llama_ready_event = threading.Event()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Auto-load the Groq client on server startup (fast — just validates API key)."""
+    """Auto-load the Groq client on server startup (fast - just validates API key)."""
     global _local_llama_loading, _local_llama_load_error
     try:
         local_llama.load_model()

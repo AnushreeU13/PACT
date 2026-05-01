@@ -550,18 +550,18 @@ userInput.addEventListener('keydown', (e) => {
     const LOAD_DEADLINE_MS = Date.now() + 24 * 60 * 60 * 1000;
     const started = Date.now();
 
-    const msgId = appendMessage('bot', 'Local Llama: loading…');
+    const msgId = appendMessage('bot', 'Connecting to Groq backend...');
 
     const setText = (t, status = 'loading') => {
         const el = document.getElementById(msgId);
         if (el) el.textContent = t;
-        
+
         if (status === 'ready') {
-            setHeaderStatus('ready', 'Llama 3 Local Sanitizer Active');
+            setHeaderStatus('ready', 'Groq Sanitizer Active');
         } else if (status === 'error') {
-            setHeaderStatus('error', 'Llama 3 Unavailable');
+            setHeaderStatus('error', 'Groq Unavailable');
         } else {
-            setHeaderStatus('loading', 'Llama 3 Loading...');
+            setHeaderStatus('loading', 'Connecting to Groq...');
         }
     };
 
@@ -596,10 +596,10 @@ userInput.addEventListener('keydown', (e) => {
             if (!statusResp.ok) {
                 consecutiveErrors++;
                 if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-                    setText('Local Llama: status unavailable. (Check backend URL in config.js)', 'error');
+                    setText('Groq backend status unavailable. (Check backend URL in config.js)', 'error');
                     return;
                 }
-                setText(`Local Llama: backend unreachable (${statusResp.status}) - retrying... (${fmtElapsed()})`, 'loading');
+                setText(`Groq backend unreachable (${statusResp.status}) - retrying... (${fmtElapsed()})`, 'loading');
                 await new Promise((r) => setTimeout(r, POLL_MS));
                 continue;
             }
@@ -607,20 +607,18 @@ userInput.addEventListener('keydown', (e) => {
             consecutiveErrors = 0;
 
             if (st.loaded) {
-                setText('Local Llama: ready.', 'ready');
+                setText('Groq backend: ready.', 'ready');
                 return;
             }
 
             if (st.loading) {
-                setText(
-                    `Local Llama: loading… (${fmtElapsed()} elapsed, ${st.model_name || 'model'})`
-                );
+                setText(`Connecting to Groq... (${fmtElapsed()} elapsed)`);
                 await new Promise((r) => setTimeout(r, POLL_MS));
                 continue;
             }
 
             if (st.load_error) {
-                setText(`Local Llama: failed to load: ${st.load_error}`, 'error');
+                setText(`Groq backend failed: ${st.load_error}`, 'error');
                 return;
             }
 
@@ -631,7 +629,7 @@ userInput.addEventListener('keydown', (e) => {
                 body: JSON.stringify({}),
             }).catch(() => {});
 
-            setText(`Local Llama: starting load… (${fmtElapsed()} elapsed)`);
+            setText(`Connecting to Groq... (${fmtElapsed()} elapsed)`);
         } catch (e) {
             consecutiveErrors++;
             console.error(`Local Llama status error (attempt ${consecutiveErrors}):`, e);

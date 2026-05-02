@@ -2,9 +2,10 @@
 Local Llama wrapper for PACT - Groq backend (cloud deployment, no Ollama required).
 
 Uses the Groq API for text generation (llama-3.1-8b-instant).
-AU-Probe uncertainty is computed via a text heuristic instead of a neural probe:
-counts [REDACTED ...] tokens in the final prompt as a fraction of total words,
-then applies a sigmoid to produce a 0-1 uncertainty score.
+AU-Probe uncertainty is computed using a linear probe trained on Llama embeddings
+and distilled into a sentence-transformer (all-MiniLM-L6-v2) backbone for deployment.
+The probe applies: score = sigmoid(w . embedding + b) where w and b were learned
+by distilling the original Llama-3.1-8b layer-32 probe onto MiniLM embeddings.
 
 Required environment variable:
     GROQ_API_KEY  - obtain a free key at https://console.groq.com
@@ -14,9 +15,9 @@ from __future__ import annotations
 
 import math
 import os
-import re
 from typing import Optional
 
+import torch
 from groq import Groq
 
 DEFAULT_MODEL_NAME = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
@@ -24,6 +25,12 @@ DEFAULT_MODEL_NAME = os.environ.get("GROQ_MODEL", "llama-3.1-8b-instant")
 _groq_client: Optional[Groq] = None
 _loaded_model_name: Optional[str] = None
 _groq_ready: bool = False
+
+# AU-Probe state
+_probe_w: Optional[torch.Tensor] = None   # shape [384]
+_probe_b: float = 0.0
+_probe_ready: bool = False
+_st_model = None                           # SentenceTransformer, lazy-loaded
 
 
 # ---------------------------------------------------------------------------
@@ -56,10 +63,9 @@ def get_status() -> dict:
     return {
         "loaded":            is_loaded(),
         "model_name":        _loaded_model_name,
-        "probe_ready":       False,
+        "probe_ready":       _probe_ready,
         "backend":           "groq",
         "groq_api_key_set":  api_key_set,
-        # kept for UI compatibility
         "cuda_available":    False,
         "cuda_device_count": 0,
         "cuda_device_name":  None,
@@ -79,8 +85,8 @@ def load_model(
     if not force_reload and _groq_ready and _loaded_model_name == model_name:
         return
 
-    _groq_client = None  # reset so _get_client() re-reads the env var
-    _get_client()        # raises if GROQ_API_KEY is missing
+    _groq_client = None
+    _get_client()
 
     _loaded_model_name = model_name
     _groq_ready = True
@@ -88,20 +94,61 @@ def load_model(
 
 
 # ---------------------------------------------------------------------------
-# AU-Probe - heuristic implementation
+# AU-Probe - MiniLM linear probe (distilled from original Llama layer-32 probe)
 # ---------------------------------------------------------------------------
-# The original neural probe needs Llama hidden states (4096-d vectors).
-# Groq does not expose hidden states, so we use a text-based proxy instead:
-#   ratio = count([REDACTED...] tokens) / total words in final prompt
-#   score = sigmoid(10 * (ratio - 0.30))
-# At ratio=0.30 → score≈0.5; at ratio=0.45 → score≈0.82 (above threshold).
 
-_REDACTED_PATTERN = re.compile(r'\[REDACTED[^\]]*\]', re.IGNORECASE)
+def _get_st_model():
+    global _st_model
+    if _st_model is None:
+        from sentence_transformers import SentenceTransformer
+        _st_model = SentenceTransformer("all-MiniLM-L6-v2")
+        print("AU probe: MiniLM sentence-transformer loaded.")
+    return _st_model
 
 
-def load_au_probe(probe_path: str, layer: int = 32) -> None:
-    """No-op in the Groq deployment version - heuristic probe needs no file."""
-    print("AU probe: using text heuristic (Groq deployment mode, no probe file needed).")
+def load_au_probe(probe_path: str, layer: int = 0) -> None:
+    """
+    Load the MiniLM-distilled linear probe from a .pt file.
+    Falls back to the text heuristic if the file is not found.
+    """
+    global _probe_w, _probe_b, _probe_ready
+
+    if not probe_path or not os.path.isfile(probe_path):
+        # Try locating minilm_probe.pt relative to this file
+        candidate = os.path.join(
+            os.path.dirname(__file__), "..", "data", "au_probe", "minilm_probe.pt"
+        )
+        candidate = os.path.abspath(candidate)
+        if os.path.isfile(candidate):
+            probe_path = candidate
+        else:
+            print("AU probe: minilm_probe.pt not found - falling back to text heuristic.")
+            return
+
+    try:
+        data = torch.load(probe_path, map_location="cpu", weights_only=False)
+        _probe_w = data["w"].float().squeeze()   # [384]
+        _probe_b = float(data["b"])
+        _probe_ready = True
+        print(f"AU probe: MiniLM probe loaded (w={_probe_w.shape}, b={_probe_b:.4f}).")
+        # Pre-load the sentence-transformer so first request is fast
+        _get_st_model()
+    except Exception as e:
+        print(f"AU probe: failed to load probe file ({e}) - falling back to text heuristic.")
+        _probe_ready = False
+
+
+def _text_heuristic(prompt: str) -> float:
+    """Fallback: redaction-ratio sigmoid when the probe file is unavailable."""
+    import re
+    if not prompt.strip():
+        return 0.0
+    redacted = len(re.findall(r'\[REDACTED[^\]]*\]', prompt, re.IGNORECASE))
+    total = len(prompt.split())
+    if total == 0:
+        return 0.0
+    ratio = redacted / total
+    return round(1.0 / (1.0 + math.exp(-10.0 * (ratio - 0.30))), 4)
 
 
 def get_au_uncertainty(
@@ -110,26 +157,43 @@ def get_au_uncertainty(
     use_chat_template: bool = False,
 ) -> float:
     """
-    Estimate uncertainty of the redacted prompt via a token-ratio heuristic.
+    Estimate uncertainty of the redacted prompt using the MiniLM linear probe.
 
-    Counts [REDACTED ...] markers as a fraction of total words, then maps
-    through a sigmoid centred at 30% redaction. Returns a float in [0, 1].
-    Threshold check (>= 0.8) lives in server.py.
+    Gets a 384-d sentence-transformer embedding, then applies:
+        score = sigmoid(w . embedding + b)
+    where w and b were distilled from the original Llama-3.1-8b layer-32 probe.
+
+    Falls back to the text heuristic if the probe is not loaded.
+    Returns a float in [0, 1].
     """
     if not prompt.strip():
         return 0.0
 
-    redacted_count = len(_REDACTED_PATTERN.findall(prompt))
-    total_words = len(prompt.split())
+    if not _probe_ready or _probe_w is None:
+        score = _text_heuristic(prompt)
+        print(f"DEBUG: AU heuristic (fallback) score={score:.4f}")
+        return score
 
-    if total_words == 0:
-        return 0.0
+    try:
+        st = _get_st_model()
+        embedding = st.encode(prompt, normalize_embeddings=True, show_progress_bar=False)
+        emb_tensor = torch.tensor(embedding, dtype=torch.float32)
 
-    ratio = redacted_count / total_words
-    score = 1.0 / (1.0 + math.exp(-10.0 * (ratio - 0.30)))
-    score = round(score, 4)
-    print(f"DEBUG: AU heuristic score={score:.4f}  redacted={redacted_count}/{total_words} words ({ratio:.0%})")
-    return score
+        w = _probe_w.cpu()
+        if emb_tensor.shape[0] != w.shape[0]:
+            # Dimension mismatch safeguard
+            n = min(emb_tensor.shape[0], w.shape[0])
+            emb_tensor = emb_tensor[:n]
+            w = w[:n]
+
+        logit = torch.dot(w, emb_tensor).item() + _probe_b
+        score = round(1.0 / (1.0 + math.exp(-logit)), 4)
+        print(f"DEBUG: AU MiniLM probe score={score:.4f}")
+        return score
+
+    except Exception as e:
+        print(f"DEBUG: AU probe error ({e}), falling back to heuristic.")
+        return _text_heuristic(prompt)
 
 
 # ---------------------------------------------------------------------------

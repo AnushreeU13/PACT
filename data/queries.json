@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "queries": [
+    {
+      "id": "financial-sample",
+      "query": "Please send $250 to account 87654321. My card is 4111 1111 1111 1111.",
+      "settings": {
+        "identity": false,
+        "location": false,
+        "demographic": false,
+        "health": false,
+        "financial": true
+      }
+    },
+    {
+      "id": "plain-text",
+      "query": "What is the capital of France?",
+      "settings": {
+        "identity": false,
+        "location": false,
+        "demographic": false,
+        "health": false,
+        "financial": true
+      }
+    }
+  ]
+}

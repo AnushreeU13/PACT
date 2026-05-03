@@ -1,0 +1,11 @@
+#,Ambiguity,Prompt,AU Score,th=0.20,th=0.40,th=0.60,th=0.80
+1,Very clear,"I am a Korean student living in Illinois, USA. I have a card number 3132 1234 4545 2134 and I want to know how to deactivate this card safely.",0.0443,pass,pass,pass,pass
+2,Clear,"I am from South Korea and currently live in Illinois. My bank card ending in 2134 was lost, and I need the exact steps to block and replace it.",0.0331,pass,pass,pass,pass
+3,Mostly clear,I am an international student in the U.S. with a debit card. I want to cancel this card and request a new one without affecting my account.,0.036,pass,pass,pass,pass
+4,Moderate,I am from an Asian country and living in one of the states in America. I currently have [CARD_NUMBER] and want to know how to cancel this card.,0.0433,pass,pass,pass,pass
+5,Moderate,I live in the U.S. now and have a card [REDACTED_FINANCIAL]. Please tell me how to deactivate it and what to do next.,0.1238,pass,pass,pass,pass
+6,Somewhat ambiguous,"I have [REDACTED_IDENTITY] in [REDACTED_LOCATION] with card [REDACTED_FINANCIAL], and I need help stopping this card.",0.2293,BLOCK,pass,pass,pass
+7,Ambiguous,"I am [REDACTED_DEMOGRAPHIC] living in [REDACTED_LOCATION], and I need to handle my card issue [REDACTED_FINANCIAL].",0.2596,BLOCK,pass,pass,pass
+8,More ambiguous,"I am [REDACTED_IDENTITY] from [REDACTED_LOCATION], and I need help with my payment card.",0.2198,BLOCK,pass,pass,pass
+9,Highly ambiguous,I have [REDACTED_FINANCIAL]. What should I do?,0.2134,BLOCK,pass,pass,pass
+10,Extremely ambiguous,How do I handle [REDACTED]?,0.311,BLOCK,pass,pass,pass

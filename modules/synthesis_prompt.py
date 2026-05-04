@@ -19,7 +19,7 @@ def build_privacy_synthesis_prompt(
     authority for what wording (including placeholders) is allowed in the final line.
     """
     return (
-        "You are a privacy-preserving text synthesizer. Your job is to rewrite the 'Original Query' "
+        "You are a privacy-preserving text synthesizer. Your job is to merge the 'Masked Variations' "
         "by combining the 'Masked Variations' into a single coherent sentence.\n\n"
         "INSTRUCTIONS:\n"
         "1. Read the Original Query to understand the overall intent.\n"

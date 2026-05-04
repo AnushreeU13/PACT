@@ -18,6 +18,20 @@ from modules import modules_geo
 _financial_detector = FinancialDetector()
 
 
+def _pre_sanitize(text, settings):
+    """Apply local (non-Groq) modules sequentially so health module never sees the original query."""
+    current = text
+    if settings.get("financial"):
+        current, _ = _financial_detector.detect_and_redact(current)
+    if settings.get("identity"):
+        current, _ = identity_module._get_detector().detect_and_redact(current)
+    if settings.get("location"):
+        current, _ = modules_geo._get_detector().detect_and_redact(current)
+    if settings.get("demographic"):
+        current, _ = demographic_module._get_detector().detect_and_redact(current)
+    return current
+
+
 def collect_pipeline_inputs(
     original_query: str,
     settings: Mapping[str, Any],
@@ -54,10 +68,6 @@ def collect_pipeline_inputs(
             futures["demographic"] = ex.submit(
                 demographic_module.make_candidates_demographic, original_query
             )
-        if settings.get("health"):
-            futures["health"] = ex.submit(
-                health_module.make_candidates_health, original_query
-            )
         if settings.get("financial"):
             futures["financial"] = ex.submit(
                 _financial_detector.detect_and_redact, original_query
@@ -74,13 +84,19 @@ def collect_pipeline_inputs(
 
     # If financial is enabled, sanitize other candidates too (post-processing).
     if settings.get("financial"):
-        for k in ("identity", "location", "demographic", "health"):
+        for k in ("identity", "location", "demographic"):
             sanitized: list[str] = []
             for s in module_masks[k]:
                 redacted, _ = _financial_detector.detect_and_redact(s)
                 if isinstance(redacted, str) and redacted.strip():
                     sanitized.append(redacted)
             module_masks[k] = sanitized
+
+    # Health module (Groq) receives pre-sanitized text only.
+    if settings.get("health"):
+        pre_sanitized = _pre_sanitize(original_query, settings)
+        health_results = health_module.make_candidates_health(pre_sanitized)
+        module_masks["health"] = [c for c in health_results if isinstance(c, str) and c.strip()]
 
     # Merge in stable order.
     for k in ("identity", "location", "demographic", "health", "financial"):

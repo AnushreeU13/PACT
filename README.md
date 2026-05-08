@@ -36,7 +36,7 @@ Wrapper for all LLM functionality in the local version. Communicates with a loca
 
 ### `modules/pipeline_collect.py`
 
-Orchestrates all five redaction modules. Runs identity, location, demographic, and financial modules concurrently using `ThreadPoolExecutor`. The health module runs separately after the local modules so that Groq never receives the original unredacted query - it receives a pre-sanitized version instead. Also provides `sequential_redaction_pipeline` for large documents where Llama synthesis is too slow.
+Orchestrates all five redaction modules. Runs identity, location, demographic, and financial modules concurrently using `ThreadPoolExecutor`. The health module runs separately after the local modules so it receives a pre-sanitized version of the query rather than the original. Also provides `sequential_redaction_pipeline` for large documents where Llama synthesis is too slow.
 
 ### `modules/identity_module.py`
 
@@ -52,7 +52,7 @@ Detects and redacts demographic attributes: age, gender, race, ethnicity, and na
 
 ### `modules/health_module.py`
 
-Detects and redacts medical information. Uses Llama (via Groq API) as the detector, sending a structured system prompt that defines four categories: CONDITION, MEDICATION, SYMPTOM, and PROCEDURE. Temperature is set to 0 for deterministic output. Falls back gracefully if the Groq call fails.
+Detects and redacts medical information. Uses local Llama via Ollama as the detector, sending a structured system prompt that defines four categories: CONDITION, MEDICATION, SYMPTOM, and PROCEDURE. Temperature is set to 0 for deterministic output. Falls back gracefully if Ollama is unavailable.
 
 ### `modules/financial_detector.py`
 
@@ -114,7 +114,7 @@ IS597-Project-PACT/
 │   ├── identity_module.py          # Name, SSN, email, phone redaction
 │   ├── modules_geo.py              # Address and location redaction
 │   ├── demographic_module.py       # Age, gender, race redaction
-│   ├── health_module.py            # Medical entity redaction via Groq Llama
+│   ├── health_module.py            # Medical entity redaction via local Llama
 │   ├── financial_detector.py       # Card, account, and income redaction
 │   └── extract_docs.py             # PDF and image text extraction
 ├── scripts/
@@ -155,7 +155,7 @@ IS597-Project-PACT/
 - Python 3.10 or higher
 - [Ollama](https://ollama.com) (local LLM runtime)
 - An OpenAI API key
-- A Groq API key (used by the health module for medical entity detection)
+- An OpenAI API key (for the final GPT response)
 
 ---
 
@@ -214,28 +214,7 @@ python -m spacy download en_core_web_sm
 
 ---
 
-### Step 6 - Set your Groq API key
-
-The health module uses Groq's hosted Llama to detect medical entities. Get a free key at [console.groq.com](https://console.groq.com).
-
-**Windows (PowerShell):**
-```powershell
-$env:GROQ_API_KEY = "your-groq-api-key"
-```
-
-**macOS / Linux:**
-```bash
-export GROQ_API_KEY="your-groq-api-key"
-```
-
-Or create a `.env` file in the project root:
-```
-GROQ_API_KEY=your-groq-api-key
-```
-
----
-
-### Step 7 - Start the backend
+### Step 6 - Start the backend
 
 ```bash
 python backend/server.py
@@ -250,7 +229,7 @@ Uvicorn running on http://0.0.0.0:8000
 
 ---
 
-### Step 8 - Open the frontend
+### Step 7 - Open the frontend
 
 Open `frontend/index.html` directly in your browser, or from the terminal:
 
@@ -266,7 +245,7 @@ open frontend/index.html
 
 ---
 
-### Step 9 - Configure the UI
+### Step 8 - Configure the UI
 
 In the left sidebar:
 

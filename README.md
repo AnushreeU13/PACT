@@ -8,6 +8,8 @@ PACT is a local privacy middleware that sits between the user and a cloud LLM. I
 
 The gap PACT fills is not just technical - it is behavioral. Most privacy tools require the user to know what to redact and to do it manually. PACT makes redaction automatic, configurable, and transparent, while still giving the user a useful AI response.
 
+![PACT Architecture](image/pact_architecture.png)
+
 ---
 
 ## How It Works

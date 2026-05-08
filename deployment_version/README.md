@@ -10,6 +10,8 @@ The local version requires the user to have Ollama installed and a 4.7 GB model 
 
 The tradeoff is that text generation and health module detection now go to Groq's servers instead of the user's machine. This is a deliberate compromise accepted for demo purposes only.
 
+![PACT Architecture](../image/pact_architecture.png)
+
 ---
 
 ## What Changed from the Local Version

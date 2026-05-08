@@ -26,6 +26,8 @@ const llamaStatusText = document.getElementById('llama-status-text');
 
 let currentAttachmentText = "";
 let currentAttachmentName = "";
+let conversationHistory = [];  // [{role, content}] using redacted prompts only
+const MAX_HISTORY_EXCHANGES = 20;
 
 // Toggles
 const toggles = {
@@ -79,6 +81,7 @@ async function sendMessage() {
             is_document: !!currentAttachmentText,
             api_key: userApiKey,
             au_threshold: auThreshold,
+            history: conversationHistory,
             settings: {
                 identity: toggles.identity.checked,
                 location: toggles.location.checked,
@@ -113,6 +116,16 @@ async function sendMessage() {
             data.sanitizations || [],
             data.pipeline_trace || null
         );
+
+        // Add to history only on successful (non-blocked) responses
+        if (data.response_plain && data.original_query_sanitized) {
+            conversationHistory.push({ role: "user",      content: data.original_query_sanitized });
+            conversationHistory.push({ role: "assistant", content: data.response_plain });
+            // Keep at most MAX_HISTORY_EXCHANGES exchanges (2 messages each)
+            if (conversationHistory.length > MAX_HISTORY_EXCHANGES * 2) {
+                conversationHistory = conversationHistory.slice(-MAX_HISTORY_EXCHANGES * 2);
+            }
+        }
 
         // Clear attachment after successful send
         clearAttachment();

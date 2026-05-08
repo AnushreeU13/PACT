@@ -212,6 +212,10 @@ class ChatSettings(BaseModel):
     health: bool
     financial: bool
 
+class HistoryEntry(BaseModel):
+    role: str
+    content: str
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -219,6 +223,7 @@ class ChatRequest(BaseModel):
     settings: ChatSettings
     api_key: str | None = None
     au_threshold: float = 0.8
+    history: list[HistoryEntry] = []
 
 
 class BatchChatRequest(BaseModel):
@@ -254,6 +259,7 @@ def _process_chat(request: ChatRequest) -> dict:
             au_score = 0.0
 
     threshold = request.au_threshold
+    response_plain = ""
     if au_score >= threshold:
         response_text = (
             f"After redacting the information categories you selected, it looks like most of the "
@@ -263,7 +269,9 @@ def _process_chat(request: ChatRequest) -> dict:
             f"strictly necessary to redact. (Uncertainty score: {au_score:.2f}, threshold: {threshold:.2f})"
         )
     else:
-        response_text = _cloud_llm(final_prompt, api_key=request.api_key)
+        response_text, response_plain = _cloud_llm(
+            final_prompt, api_key=request.api_key, history=request.history
+        )
 
     pipeline_trace = {
         "module_masks": module_masks,
@@ -281,6 +289,7 @@ def _process_chat(request: ChatRequest) -> dict:
 
     return {
         "response": response_text,
+        "response_plain": response_plain if au_score < threshold else "",
         "sanitizations": [],
         "original_query_sanitized": final_prompt,
         "pipeline_trace": pipeline_trace,
@@ -390,10 +399,15 @@ def _local_synthesize_final_prompt(
     return final_prompt, trace
 
 
-def _cloud_llm(final_prompt: str, api_key: str | None = None) -> str:
+def _cloud_llm(
+    final_prompt: str,
+    api_key: str | None = None,
+    history: list | None = None,
+) -> tuple[str, str]:
     """
-    Cloud GPT: chatbot-like response based only on final_prompt.
-    Uses the per-request api_key if provided, falls back to the GPT_API_KEY env var.
+    Cloud GPT response using history + current redacted prompt.
+    History entries must use redacted content only — originals are never passed.
+    Returns (html_response, plain_response).
     """
     key = (api_key or "").strip() or GPT_API_KEY
     if not key:
@@ -406,9 +420,16 @@ def _cloud_llm(final_prompt: str, api_key: str | None = None) -> str:
         "Authorization": f"Bearer {key}",
         "Content-Type": "application/json",
     }
+
+    messages = []
+    if history:
+        for entry in history[-40:]:  # cap at 20 exchanges = 40 messages
+            messages.append({"role": entry.role, "content": entry.content})
+    messages.append({"role": "user", "content": final_prompt})
+
     payload = {
         "model": GPT_MODEL_ID,
-        "messages": [{"role": "user", "content": final_prompt}],
+        "messages": messages,
         "temperature": 0.7,
     }
 
@@ -435,10 +456,9 @@ def _cloud_llm(final_prompt: str, api_key: str | None = None) -> str:
         .get("message", {})
         .get("content", "")
     )
-    content = content.strip() or "(No response from GPT.)"
-
-    # UI uses innerHTML, so escape and convert newlines to <br>.
-    return _escape_html(content).replace("\n", "<br>")
+    plain = content.strip() or "(No response from GPT.)"
+    html = _escape_html(plain).replace("\n", "<br>")
+    return html, plain
 
 
 def _load_queries_document() -> dict:

@@ -19,6 +19,7 @@ The gap PACT fills is not just technical - it is behavioral. Most privacy tools 
 3. Local Llama 3.1:8b (via Ollama) synthesizes the five redacted candidates into a single coherent prompt, merging the best redaction decisions from each module.
 4. The synthesized prompt is scored by the AU-Probe, a linear classifier trained on Llama 3.1:8b embeddings. If the score exceeds the user-configured threshold, the prompt is flagged as too degraded to be useful and the user is asked to rephrase. Otherwise the sanitized prompt is forwarded to OpenAI GPT-4o-mini.
 5. The AI response is returned to the user. The original query never leaves the machine.
+6. Within a session, PACT maintains up to 20 prior exchanges as conversation context for GPT. Only the redacted versions of previous prompts and their responses are kept in history - the originals are never retained.
 
 ---
 
@@ -26,7 +27,7 @@ The gap PACT fills is not just technical - it is behavioral. Most privacy tools 
 
 ### `backend/server.py`
 
-FastAPI server exposing the pipeline over HTTP. Handles the `/chat` endpoint which drives the full pipeline: module collection, Llama synthesis, AU-Probe scoring, and the GPT call. Also exposes `/local-llama/status`, `/local-llama/load`, `/chat/batch-from-file`, and `/extract/text`. The AU threshold is accepted as a per-request parameter (`au_threshold`) so users can configure it from the UI.
+FastAPI server exposing the pipeline over HTTP. Handles the `/chat` endpoint which drives the full pipeline: module collection, Llama synthesis, AU-Probe scoring, and the GPT call. Also exposes `/local-llama/status`, `/local-llama/load`, `/chat/batch-from-file`, and `/extract/text`. The AU threshold is accepted as a per-request parameter (`au_threshold`) so users can configure it from the UI. Conversation history (up to 20 exchanges of redacted prompts and responses) is accepted as a `history` field and forwarded to GPT to enable multi-turn dialogue within a session.
 
 ### `modules/local_llama.py`
 
@@ -156,7 +157,6 @@ IS597-Project-PACT/
 
 - Python 3.10 or higher
 - [Ollama](https://ollama.com) (local LLM runtime)
-- An OpenAI API key
 - An OpenAI API key (for the final GPT response)
 
 ---
@@ -294,7 +294,7 @@ The AU-Probe gates whether a sanitized prompt should be forwarded to the cloud. 
 
 **Slow first response** - The first request loads the model into memory. Subsequent requests are faster.
 
-**Health module returns no candidates** - Check that `GROQ_API_KEY` is set and valid. The health module logs failures but the pipeline continues without health candidates.
+**Health module returns no candidates** - The health module uses local Llama via Ollama. Verify Ollama is running and `llama3.1:8b` is pulled. The pipeline continues without health candidates if the module fails.
 
 **Package conflicts** - Use a virtual environment and install exact versions:
 ```bash

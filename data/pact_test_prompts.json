@@ -1,0 +1,65 @@
+{
+  "description": "10 test prompts using actual PACT redaction tag vocabulary, mirroring the Gawon card-scenario test set. Tags used match real pipeline output: [REDACTED NAME], [REDACTED LOCATION], [REDACTED DEMOGRAPHIC], [REDACTED CARD], [REDACTED ACCOUNT], [REDACTED VALUE].",
+  "prompts": [
+    {
+      "id": 1,
+      "ambiguity": "Very clear",
+      "approx_ratio": 0.00,
+      "prompt": "I am a Korean student living in Illinois, USA. I have a card number 3132 1234 4545 2134 and I want to know how to deactivate this card safely."
+    },
+    {
+      "id": 2,
+      "ambiguity": "Clear",
+      "approx_ratio": 0.04,
+      "prompt": "I am a Korean student living in [REDACTED LOCATION]. I have a card ending in 2134 and I want to know how to deactivate it safely."
+    },
+    {
+      "id": 3,
+      "ambiguity": "Mostly clear",
+      "approx_ratio": 0.09,
+      "prompt": "I am [REDACTED DEMOGRAPHIC] living in [REDACTED LOCATION]. I have a card ending in 2134 and I want to know how to cancel it."
+    },
+    {
+      "id": 4,
+      "ambiguity": "Moderate",
+      "approx_ratio": 0.17,
+      "prompt": "I am [REDACTED DEMOGRAPHIC] living in [REDACTED LOCATION]. I have [REDACTED CARD] and I want to know how to cancel it."
+    },
+    {
+      "id": 5,
+      "ambiguity": "Moderate",
+      "approx_ratio": 0.27,
+      "prompt": "I am [REDACTED DEMOGRAPHIC] in [REDACTED LOCATION] with a lost [REDACTED CARD]. How do I cancel my [REDACTED ACCOUNT]?"
+    },
+    {
+      "id": 6,
+      "ambiguity": "Somewhat ambiguous",
+      "approx_ratio": 0.31,
+      "prompt": "I am [REDACTED NAME] in [REDACTED LOCATION] and need help with my [REDACTED CARD] and [REDACTED ACCOUNT]."
+    },
+    {
+      "id": 7,
+      "ambiguity": "Ambiguous",
+      "approx_ratio": 0.44,
+      "prompt": "[REDACTED NAME] [REDACTED DEMOGRAPHIC] from [REDACTED LOCATION] needs to cancel [REDACTED CARD]. How?"
+    },
+    {
+      "id": 8,
+      "ambiguity": "More ambiguous",
+      "approx_ratio": 0.57,
+      "prompt": "[REDACTED NAME] [REDACTED LOCATION] [REDACTED CARD] [REDACTED ACCOUNT] issue. Steps needed."
+    },
+    {
+      "id": 9,
+      "ambiguity": "Highly ambiguous",
+      "approx_ratio": 0.71,
+      "prompt": "[REDACTED NAME] [REDACTED DEMOGRAPHIC] [REDACTED LOCATION] [REDACTED CARD] [REDACTED ACCOUNT] needs help."
+    },
+    {
+      "id": 10,
+      "ambiguity": "Extremely ambiguous",
+      "approx_ratio": 0.86,
+      "prompt": "[REDACTED NAME] [REDACTED DEMOGRAPHIC] [REDACTED LOCATION] [REDACTED CARD] [REDACTED ACCOUNT] [REDACTED VALUE] help."
+    }
+  ]
+}

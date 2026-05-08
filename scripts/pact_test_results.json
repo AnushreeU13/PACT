@@ -1,0 +1,76 @@
+{
+  "backbone": "llama3.1:8b (local, 4096-d)",
+  "probe": "linearprobe_layer_32.pt",
+  "results": [
+    {
+      "id": 1,
+      "ambiguity": "Very clear",
+      "ratio": 0.0,
+      "au_score": 0.0,
+      "prompt": "I am a Korean student living in Illinois, USA. I have a card number 3132 1234 4545 2134 and I want to know how to deactivate this card safely."
+    },
+    {
+      "id": 2,
+      "ambiguity": "Clear",
+      "ratio": 0.038,
+      "au_score": 0.0,
+      "prompt": "I am a Korean student living in [REDACTED LOCATION]. I have a card ending in 2134 and I want to know how to deactivate it safely."
+    },
+    {
+      "id": 3,
+      "ambiguity": "Mostly clear",
+      "ratio": 0.083,
+      "au_score": 0.0,
+      "prompt": "I am [REDACTED DEMOGRAPHIC] living in [REDACTED LOCATION]. I have a card ending in 2134 and I want to know how to cancel it."
+    },
+    {
+      "id": 4,
+      "ambiguity": "Moderate",
+      "ratio": 0.143,
+      "au_score": 0.0,
+      "prompt": "I am [REDACTED DEMOGRAPHIC] living in [REDACTED LOCATION]. I have [REDACTED CARD] and I want to know how to cancel it."
+    },
+    {
+      "id": 5,
+      "ambiguity": "Moderate",
+      "ratio": 0.211,
+      "au_score": 0.1062,
+      "prompt": "I am [REDACTED DEMOGRAPHIC] in [REDACTED LOCATION] with a lost [REDACTED CARD]. How do I cancel my [REDACTED ACCOUNT]?"
+    },
+    {
+      "id": 6,
+      "ambiguity": "Somewhat ambiguous",
+      "ratio": 0.235,
+      "au_score": 0.0024,
+      "prompt": "I am [REDACTED NAME] in [REDACTED LOCATION] and need help with my [REDACTED CARD] and [REDACTED ACCOUNT]."
+    },
+    {
+      "id": 7,
+      "ambiguity": "Ambiguous",
+      "ratio": 0.308,
+      "au_score": 0.8248,
+      "prompt": "[REDACTED NAME] [REDACTED DEMOGRAPHIC] from [REDACTED LOCATION] needs to cancel [REDACTED CARD]. How?"
+    },
+    {
+      "id": 8,
+      "ambiguity": "More ambiguous",
+      "ratio": 0.364,
+      "au_score": 0.9199,
+      "prompt": "[REDACTED NAME] [REDACTED LOCATION] [REDACTED CARD] [REDACTED ACCOUNT] issue. Steps needed."
+    },
+    {
+      "id": 9,
+      "ambiguity": "Highly ambiguous",
+      "ratio": 0.417,
+      "au_score": 0.8549,
+      "prompt": "[REDACTED NAME] [REDACTED DEMOGRAPHIC] [REDACTED LOCATION] [REDACTED CARD] [REDACTED ACCOUNT] needs help."
+    },
+    {
+      "id": 10,
+      "ambiguity": "Extremely ambiguous",
+      "ratio": 0.462,
+      "au_score": 0.8447,
+      "prompt": "[REDACTED NAME] [REDACTED DEMOGRAPHIC] [REDACTED LOCATION] [REDACTED CARD] [REDACTED ACCOUNT] [REDACTED VALUE] help."
+    }
+  ]
+}

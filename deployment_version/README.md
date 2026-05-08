@@ -1,4 +1,4 @@
-# PACT Deployment Version
+﻿# PACT Deployment Version
 
 This folder contains a cloud-deployable version of PACT built for demonstration and online access. It is **not** the primary research version. The local version (in the repository root) runs entirely on-device using Ollama. This version replaces Ollama with Groq's hosted Llama API so that PACT can run on a server without requiring a GPU or a local model download. The backend runs on Railway; the frontend is served from GitHub Pages.
 
@@ -6,7 +6,7 @@ This folder contains a cloud-deployable version of PACT built for demonstration 
 
 ## Why a Deployment Version Exists
 
-The local version requires the user to have Ollama installed and a 4.7 GB model pulled — which is not practical for a live demo or for reviewers who just want to see PACT in action. This version removes that barrier. Anyone with a browser can reach the frontend and interact with PACT without any local setup.
+The local version requires the user to have Ollama installed and a 4.7 GB model pulled - which is not practical for a live demo or for reviewers who just want to see PACT in action. This version removes that barrier. Anyone with a browser can reach the frontend and interact with PACT without any local setup.
 
 The tradeoff is that text generation and health module detection now go to Groq's servers instead of the user's machine. This is a deliberate compromise accepted for demo purposes only.
 
@@ -18,16 +18,16 @@ The tradeoff is that text generation and health module detection now go to Groq'
 
 The local version talks to a locally running Ollama instance at `http://localhost:11434`. This version calls Groq's API (`api.groq.com`) using the `llama-3.1-8b-instant` model. Groq requires no local GPU and returns responses over HTTPS with low latency.
 
-**Affected file:** `modules/local_llama.py` — replaced the Ollama HTTP client with the `groq` Python SDK.
+**Affected file:** `modules/local_llama.py` - replaced the Ollama HTTP client with the `groq` Python SDK.
 
 ### 2. AU-Probe: Llama Embeddings → MiniLM Embeddings
 
 The local version fetches 4096-d embeddings from Ollama to score prompts. Groq does not expose an embeddings endpoint, so the probe was retrained on `all-MiniLM-L6-v2` (384-d, runs in-process via `sentence-transformers`). The linear classifier was retrained on the same 488-prompt dataset using redaction-ratio labels.
 
-**Affected file:** `modules/local_llama.py` — probe now loads MiniLM weights and uses `sentence_transformers.SentenceTransformer` instead of Ollama.
+**Affected file:** `modules/local_llama.py` - probe now loads MiniLM weights and uses `sentence_transformers.SentenceTransformer` instead of Ollama.
 
 **Probe training results (MiniLM):**
-- Accuracy: 0.93 — ROC-AUC: 0.9818
+- Accuracy: 0.93 - ROC-AUC: 0.9818
 
 ### 3. Synthesis Prompt: Original Query Removed
 
@@ -41,9 +41,9 @@ This was corrected: `modules/synthesis_prompt.py` now builds a prompt that conta
 
 The health module sends text to Groq Llama (temperature 0) to detect medical entities. There was no local alternative that matched its recall. Because of the synthesis prompt fix above, the health module receives a pre-sanitized version of the query (identity, location, demographic, and financial PII have already been removed by local modules before health is called), but it still operates on cloud infrastructure.
 
-**Remaining limitation:** The local modules (identity, location, demographic, financial) each produce a partially redacted version of the original query. By the time health is called, some PII is gone, but not all — the other modules each only redact their own category. A query with a person's name, address, and a medical condition would have the name and address stripped before health sees it, but each local module's output still contains the other categories' raw data. The union of all candidates passed to synthesis still contains partially unredacted text. The synthesis prompt fix ensures Groq never sees the *original* query directly, but it does see the candidates produced by the local modules — which are partially redacted, not fully clean.
+**Remaining limitation:** The local modules (identity, location, demographic, financial) each produce a partially redacted version of the original query. By the time health is called, some PII is gone, but not all - the other modules each only redact their own category. A query with a person's name, address, and a medical condition would have the name and address stripped before health sees it, but each local module's output still contains the other categories' raw data. The union of all candidates passed to synthesis still contains partially unredacted text. The synthesis prompt fix ensures Groq never sees the *original* query directly, but it does see the candidates produced by the local modules - which are partially redacted, not fully clean.
 
-This is a known and accepted limitation of the current design. A complete mitigation would require running all five modules sequentially and passing only the fully chained output to Groq — which is what `sequential_redaction_pipeline` in `pipeline_collect.py` does, but that path is used only for large documents, not for the standard query flow.
+This is a known and accepted limitation of the current design. A complete mitigation would require running all five modules sequentially and passing only the fully chained output to Groq - which is what `sequential_redaction_pipeline` in `pipeline_collect.py` does, but that path is used only for large documents, not for the standard query flow.
 
 ### 5. Infrastructure
 
@@ -90,7 +90,7 @@ deployment_version/
 
 ## Deploying
 
-### Part 1 — Backend on Railway
+### Part 1 - Backend on Railway
 
 Railway builds and runs the backend directly from a GitHub repository.
 
@@ -139,7 +139,7 @@ If `probe_ready` is false, confirm that `data/au_probe/minilm_probe.pt` is commi
 
 ---
 
-### Part 2 — Frontend on GitHub Pages
+### Part 2 - Frontend on GitHub Pages
 
 The frontend is a static site. No server is needed.
 
@@ -170,4 +170,4 @@ The frontend URL and the Railway backend URL are the two pieces that must match.
 
 Anushree Udhayakumar, Gawon Lim, Jesse Marsh
 
-IS597 — Human-Centered Data Science, University of Illinois Urbana-Champaign
+IS597 - Human-Centered Data Science, University of Illinois Urbana-Champaign

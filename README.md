@@ -1,12 +1,12 @@
-# PACT: Privacy-Aware Cloud Transmission
+﻿# PACT: Privacy-Aware Cloud Transmission
 
 ## What Is PACT?
 
-Every time a user types a query into a cloud AI — asking about a medical condition, filling out a financial form, or describing a personal situation — the entire message goes to an external server, word for word. The user typically does not realize they are handing their most sensitive information to a third party they have no control over. There is no mechanism in standard AI interfaces to scrub that data before it leaves the device.
+Every time a user types a query into a cloud AI - asking about a medical condition, filling out a financial form, or describing a personal situation - the entire message goes to an external server, word for word. The user typically does not realize they are handing their most sensitive information to a third party they have no control over. There is no mechanism in standard AI interfaces to scrub that data before it leaves the device.
 
 PACT is a local privacy middleware that sits between the user and a cloud LLM. It intercepts the user's prompt before it is sent, identifies sensitive personal information across five configurable categories, and replaces it with anonymized placeholders. Only the sanitized version of the prompt is forwarded to the cloud. The cloud LLM never sees the original.
 
-The gap PACT fills is not just technical — it is behavioral. Most privacy tools require the user to know what to redact and to do it manually. PACT makes redaction automatic, configurable, and transparent, while still giving the user a useful AI response.
+The gap PACT fills is not just technical - it is behavioral. Most privacy tools require the user to know what to redact and to do it manually. PACT makes redaction automatic, configurable, and transparent, while still giving the user a useful AI response.
 
 ---
 
@@ -29,14 +29,14 @@ FastAPI server exposing the pipeline over HTTP. Handles the `/chat` endpoint whi
 ### `modules/local_llama.py`
 
 Wrapper for all LLM functionality in the local version. Communicates with a locally running Ollama instance over HTTP. Provides:
-- `load_model()` — verifies Ollama is running and the model is pulled
-- `load_au_probe()` — loads the linear probe weights from a `.pt` file
-- `get_au_uncertainty()` — fetches a 4096-d embedding from Ollama's `/api/embeddings` endpoint and scores it with the probe: `score = sigmoid(w · embedding + b)`
-- `generate_text()` — calls Ollama to run text generation or chat completion
+- `load_model()` - verifies Ollama is running and the model is pulled
+- `load_au_probe()` - loads the linear probe weights from a `.pt` file
+- `get_au_uncertainty()` - fetches a 4096-d embedding from Ollama's `/api/embeddings` endpoint and scores it with the probe: `score = sigmoid(w · embedding + b)`
+- `generate_text()` - calls Ollama to run text generation or chat completion
 
 ### `modules/pipeline_collect.py`
 
-Orchestrates all five redaction modules. Runs identity, location, demographic, and financial modules concurrently using `ThreadPoolExecutor`. The health module runs separately after the local modules so that Groq never receives the original unredacted query — it receives a pre-sanitized version instead. Also provides `sequential_redaction_pipeline` for large documents where Llama synthesis is too slow.
+Orchestrates all five redaction modules. Runs identity, location, demographic, and financial modules concurrently using `ThreadPoolExecutor`. The health module runs separately after the local modules so that Groq never receives the original unredacted query - it receives a pre-sanitized version instead. Also provides `sequential_redaction_pipeline` for large documents where Llama synthesis is too slow.
 
 ### `modules/identity_module.py`
 
@@ -65,7 +65,7 @@ Rule-based financial PII detector with structural validation:
 
 ### `modules/synthesis_prompt.py`
 
-Builds the prompt sent to local Llama that merges all module candidates into a single best-redacted version. The original user query is not included in this prompt — only the redacted candidates are passed. Also provides `extract_final_prompt` to parse Llama's output and `is_synthesis_unusable` to detect refusals or incoherent output.
+Builds the prompt sent to local Llama that merges all module candidates into a single best-redacted version. The original user query is not included in this prompt - only the redacted candidates are passed. Also provides `extract_final_prompt` to parse Llama's output and `is_synthesis_unusable` to detect refusals or incoherent output.
 
 ### `modules/extract_docs.py`
 
@@ -159,7 +159,7 @@ IS597-Project-PACT/
 
 ---
 
-### Step 1 — Install Ollama
+### Step 1 - Install Ollama
 
 **Windows / macOS:** Download and run the installer from [https://ollama.com/download](https://ollama.com/download).
 
@@ -170,7 +170,7 @@ curl -fsSL https://ollama.com/install.sh | sh
 
 ---
 
-### Step 2 — Pull the Llama 3.1 model
+### Step 2 - Pull the Llama 3.1 model
 
 ```bash
 ollama pull llama3.1:8b
@@ -180,7 +180,7 @@ This downloads approximately 4.7 GB. Only required once.
 
 ---
 
-### Step 3 — Clone the repository
+### Step 3 - Clone the repository
 
 ```bash
 git clone https://github.com/AnushreeU13/IS597-Project-PACT.git
@@ -189,7 +189,7 @@ cd IS597-Project-PACT
 
 ---
 
-### Step 4 — Create and activate a virtual environment (recommended)
+### Step 4 - Create and activate a virtual environment (recommended)
 
 **Windows:**
 ```powershell
@@ -205,7 +205,7 @@ source venv/bin/activate
 
 ---
 
-### Step 5 — Install Python dependencies
+### Step 5 - Install Python dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -214,7 +214,7 @@ python -m spacy download en_core_web_sm
 
 ---
 
-### Step 6 — Set your Groq API key
+### Step 6 - Set your Groq API key
 
 The health module uses Groq's hosted Llama to detect medical entities. Get a free key at [console.groq.com](https://console.groq.com).
 
@@ -235,7 +235,7 @@ GROQ_API_KEY=your-groq-api-key
 
 ---
 
-### Step 7 — Start the backend
+### Step 7 - Start the backend
 
 ```bash
 python backend/server.py
@@ -250,7 +250,7 @@ Uvicorn running on http://0.0.0.0:8000
 
 ---
 
-### Step 8 — Open the frontend
+### Step 8 - Open the frontend
 
 Open `frontend/index.html` directly in your browser, or from the terminal:
 
@@ -266,12 +266,12 @@ open frontend/index.html
 
 ---
 
-### Step 9 — Configure the UI
+### Step 9 - Configure the UI
 
 In the left sidebar:
 
 1. Paste your **OpenAI API key** (`sk-...`) into the API key field. It is stored in session storage for the current tab only and is never logged server-side.
-2. Select an **AU-Probe threshold** from the dropdown. Lower thresholds are stricter — they block prompts that have lost significant context. Higher thresholds are more permissive.
+2. Select an **AU-Probe threshold** from the dropdown. Lower thresholds are stricter - they block prompts that have lost significant context. Higher thresholds are more permissive.
 3. Toggle the **privacy categories** you want to redact before sending a query.
 
 ---
@@ -305,17 +305,17 @@ The AU-Probe gates whether a sanitized prompt should be forwarded to the cloud. 
 
 ## Troubleshooting
 
-**Ollama not running** — Verify with `ollama list`. If nothing appears, start Ollama from the desktop app or run `ollama serve`.
+**Ollama not running** - Verify with `ollama list`. If nothing appears, start Ollama from the desktop app or run `ollama serve`.
 
-**"Model not found"** — Run `ollama pull llama3.1:8b` and restart the backend.
+**"Model not found"** - Run `ollama pull llama3.1:8b` and restart the backend.
 
-**Port conflict on 11434** — If both the Ollama CLI and the Ollama Desktop app are installed, only one should be running. Open Task Manager and ensure only one `ollama` process is active.
+**Port conflict on 11434** - If both the Ollama CLI and the Ollama Desktop app are installed, only one should be running. Open Task Manager and ensure only one `ollama` process is active.
 
-**Slow first response** — The first request loads the model into memory. Subsequent requests are faster.
+**Slow first response** - The first request loads the model into memory. Subsequent requests are faster.
 
-**Health module returns no candidates** — Check that `GROQ_API_KEY` is set and valid. The health module logs failures but the pipeline continues without health candidates.
+**Health module returns no candidates** - Check that `GROQ_API_KEY` is set and valid. The health module logs failures but the pipeline continues without health candidates.
 
-**Package conflicts** — Use a virtual environment and install exact versions:
+**Package conflicts** - Use a virtual environment and install exact versions:
 ```bash
 pip install -r requirements.txt --force-reinstall
 ```
@@ -326,4 +326,4 @@ pip install -r requirements.txt --force-reinstall
 
 Anushree Udhayakumar, Gawon Lim, Jesse Marsh
 
-IS597 — Human-Centered Data Science, University of Illinois Urbana-Champaign
+IS597 - Human-Centered Data Science, University of Illinois Urbana-Champaign

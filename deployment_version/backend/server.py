@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
+from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 import uvicorn
@@ -12,7 +13,9 @@ import time
 # Import our financial detector
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 from modules import local_llama
-from modules.pipeline_collect import collect_pipeline_inputs
+from modules import identity_module, modules_geo, demographic_module, health_module
+from modules.extract_docs import extract_text_from_file
+from modules.pipeline_collect import collect_pipeline_inputs, sequential_redaction_pipeline
 from modules.synthesis_prompt import (
     build_privacy_synthesis_prompt,
     extract_final_prompt,
@@ -21,8 +24,6 @@ from modules.synthesis_prompt import (
 
 ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 QUERIES_JSON_PATH = os.path.join(ROOT_DIR, 'data', 'queries.json')
-
-app = FastAPI()
 
 def _require_env(name: str) -> str:
     value = os.environ.get(name)
@@ -45,7 +46,7 @@ GPT_MODEL_ID = "gpt-4o-mini"
 
 LOCAL_LLM_MODEL_NAME = os.environ.get(
     "LOCAL_LLM_MODEL_NAME",
-    "llama3.1:8b",
+    "llama-3.1-8b-instant",
 )
 
 
@@ -69,7 +70,7 @@ def _local_llama_load_wait_timeout_sec() -> float | None:
     if raw in ("unlimited", "none", "inf", "infinite"):
         return None
     if raw == "":
-        return 21600.0
+        return 60.0  # Groq init is near-instant; 60s is generous
     try:
         v = float(raw)
     except ValueError:
@@ -85,8 +86,37 @@ _local_llama_loading = False
 _local_llama_load_error: str | None = None
 _local_llama_ready_event = threading.Event()
 
-if local_llama.is_loaded():
-    _local_llama_ready_event.set()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Auto-load the Groq client on server startup (fast - just validates API key)."""
+    global _local_llama_loading, _local_llama_load_error
+    try:
+        local_llama.load_model()
+        local_llama.load_au_probe("")
+        _local_llama_load_error = None
+        _local_llama_ready_event.set()
+        print("Groq backend initialised on startup.")
+    except Exception as e:
+        _local_llama_load_error = str(e)
+        _local_llama_ready_event.set()  # unblock waiters so they get a proper error
+        print(f"Startup load failed: {e}")
+
+    # Pre-warm spaCy models so the first request isn't slow
+    print("Pre-warming spaCy NLP models...")
+    try:
+        identity_module._get_detector()
+        modules_geo._get_detector()
+        demographic_module._get_detector()
+        health_module._get_detector()
+        print("spaCy models ready.")
+    except Exception as e:
+        print(f"spaCy pre-warm warning (non-fatal): {e}")
+    yield
+
+
+app = FastAPI(lifespan=lifespan)
+
 
 class LocalLlamaLoadRequest(BaseModel):
     model_name: str | None = None
@@ -212,6 +242,10 @@ class ChatSettings(BaseModel):
     health: bool
     financial: bool
 
+# Queries longer than this go through sequential regex redaction instead of
+# Groq synthesis, avoiding the 6000 TPM free-tier limit.
+MAX_CHARS_FOR_GROQ_SYNTHESIS = 1500
+
 class ChatRequest(BaseModel):
     model_config = ConfigDict(extra="ignore")
 
@@ -219,6 +253,7 @@ class ChatRequest(BaseModel):
     settings: ChatSettings
     api_key: str | None = None
     au_threshold: float = 0.8
+    is_document: bool = False
 
 
 class BatchChatRequest(BaseModel):
@@ -233,17 +268,31 @@ class QueriesFile(BaseModel):
 
 def _process_chat(request: ChatRequest) -> dict:
     original_query = request.query
+    use_sequential = request.is_document or len(original_query) > MAX_CHARS_FOR_GROQ_SYNTHESIS
 
-    candidates, module_masks, financial_candidate = collect_pipeline_inputs(
-        original_query, request.settings.model_dump()
-    )
-
-    final_prompt, llama_trace = _local_synthesize_final_prompt(
-        original_query=original_query,
-        candidates=candidates,
-        privacy_preferences=request.settings.model_dump(),
-        financial_candidate=financial_candidate,
-    )
+    if use_sequential:
+        final_prompt = sequential_redaction_pipeline(original_query, request.settings.model_dump())
+        candidates = [final_prompt]
+        module_masks: dict = {}
+        llama_trace = {
+            "synthesis_mode": "sequential_redaction",
+            "model_name": None,
+            "synthesis_prompt": "",
+            "raw_model_output": "",
+            "extracted_before_fallback": final_prompt,
+            "used_fallback": False,
+            "fallback_reason": "large_input_bypass_groq",
+        }
+    else:
+        candidates, module_masks, financial_candidate = collect_pipeline_inputs(
+            original_query, request.settings.model_dump()
+        )
+        final_prompt, llama_trace = _local_synthesize_final_prompt(
+            original_query=original_query,
+            candidates=candidates,
+            privacy_preferences=request.settings.model_dump(),
+            financial_candidate=financial_candidate,
+        )
 
     au_score = 0.0
     if USE_LOCAL_LLAMA_FOR_SYNTHESIS:
@@ -253,14 +302,15 @@ def _process_chat(request: ChatRequest) -> dict:
             print(f"AU Uncertainty calculation failed: {e}")
             au_score = 0.0
 
-    threshold = request.au_threshold
-    if au_score >= threshold:
+    au_threshold = max(0.0, min(1.0, request.au_threshold))
+
+    if au_score >= au_threshold:
         response_text = (
             f"After redacting the information categories you selected, it looks like most of the "
             f"meaningful context has been removed from your query. Without enough detail, the AI is "
             f"likely to give you a vague or unhelpful response. Try rephrasing your query with more "
             f"context that you are comfortable sharing, or consider which privacy categories are "
-            f"strictly necessary to redact. (Uncertainty score: {au_score:.2f}, threshold: {threshold:.2f})"
+            f"strictly necessary to redact. (Uncertainty score: {au_score:.2f}, threshold: {au_threshold:.2f})"
         )
     else:
         response_text = _cloud_llm(final_prompt, api_key=request.api_key)
@@ -272,9 +322,9 @@ def _process_chat(request: ChatRequest) -> dict:
         "local_llama": llama_trace,
         "au_probe": {
             "score": round(au_score, 4),
-            "threshold": threshold,
-            "triggered": au_score >= threshold,
-            "status": "uncertain" if au_score >= threshold else "certain",
+            "threshold": au_threshold,
+            "triggered": au_score >= au_threshold,
+            "status": "uncertain" if au_score >= au_threshold else "certain",
         },
         "final_prompt_to_gpt": final_prompt,
     }
@@ -492,5 +542,19 @@ async def chat_batch_from_file(body: BatchChatRequest | None = None):
 async def chat_endpoint(request: ChatRequest):
     return _process_chat(request)
 
+
+@app.post("/extract/text")
+async def extract_text_endpoint(file: UploadFile = File(...)):
+    content = await file.read()
+    try:
+        text = extract_text_from_file(content, file.filename or "upload.pdf")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Extraction failed: {e}")
+    if not text.strip():
+        raise HTTPException(status_code=422, detail="No text could be extracted from this file. It may be a scanned image without OCR support on this server.")
+    return {"text": text, "filename": file.filename}
+
+
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)

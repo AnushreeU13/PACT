@@ -16,7 +16,7 @@ if (apiKeyInput) {
     const savedKey = sessionStorage.getItem('pact_openai_key');
     if (savedKey) {
         apiKeyInput.value = savedKey;
-        updateKeyStatus('active', '✅');
+        updateKeyStatus('active', '');
         console.log("DEBUG: Restored API key from session storage.");
     }
 }
@@ -53,7 +53,7 @@ async function sendMessage() {
     }
 
     // Add user message to UI (show a shorter version if it's a huge doc)
-    const displayMessage = currentAttachmentName ? `📎 ${currentAttachmentName}\n${text}` : text;
+    const displayMessage = currentAttachmentName ? `[Attached: ${currentAttachmentName}]\n${text}` : text;
     appendMessage('user', displayMessage);
     userInput.value = '';
     userInput.style.height = 'auto';
@@ -94,7 +94,7 @@ async function sendMessage() {
             api_key_length: payload.api_key ? payload.api_key.length : 0
         });
 
-        const response = await fetch('http://localhost:8000/chat', {
+        const response = await fetch(BACKEND_URL + '/chat', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
@@ -127,9 +127,10 @@ async function sendMessage() {
     }
 }
 
+let _msgCounter = 0;
 function appendMessage(role, text) {
     const msgDiv = document.createElement('div');
-    const id = 'msg-' + Date.now();
+    const id = 'msg-' + (++_msgCounter);
     msgDiv.id = id;
     msgDiv.className = `message ${role}-message`;
     msgDiv.textContent = text;
@@ -171,7 +172,6 @@ function appendPipelineTrace(container, trace) {
         const isUncertain = auProbe.triggered;
         const badgeColor = isUncertain ? '#ef4444' : '#22d3ee';
         const badgeBg   = isUncertain ? 'rgba(239,68,68,0.15)' : 'rgba(34,211,238,0.15)';
-        const icon      = isUncertain ? '⚠️' : '✅';
         badgeHtml = `<span style="
             background:${badgeBg};
             color:${badgeColor};
@@ -182,10 +182,10 @@ function appendPipelineTrace(container, trace) {
             font-weight:700;
             letter-spacing:0.02em;
             white-space:nowrap;
-        ">${icon} AU Score: ${score}% — ${auProbe.status.toUpperCase()}</span>`;
+        ">AU Score: ${score}% uncertainty</span>`;
     }
 
-    sum.innerHTML = `<span>🔍 Pipeline: module masks → Local Llama → GPT</span>${badgeHtml}`;
+    sum.innerHTML = `<span>Pipeline: module masks - Groq - GPT</span>${badgeHtml}`;
 
     const body = document.createElement('div');
     body.style.marginTop = '10px';
@@ -239,7 +239,7 @@ function appendPipelineTrace(container, trace) {
         h.style.marginBottom = '6px';
         h.style.textTransform = 'uppercase';
         h.style.letterSpacing = '0.05em';
-        h.textContent = '🧠 AU-Probe Uncertainty';
+        h.textContent = 'AU-Probe Uncertainty';
         scoreBar.appendChild(h);
 
         // Score bar
@@ -266,16 +266,15 @@ function appendPipelineTrace(container, trace) {
             : 'linear-gradient(90deg, #22d3ee, #6366f1)';
         barFill.style.transition = 'width 0.4s ease';
 
-        // Threshold marker — position driven by the actual threshold returned from the server
-        const thresholdPct = Math.round((auProbe.threshold || 0.8) * 100);
+        // Threshold marker at 80%
         const marker = document.createElement('div');
         marker.style.position = 'absolute';
-        marker.style.left = `${thresholdPct}%`;
+        marker.style.left = '80%';
         marker.style.top = '0';
         marker.style.bottom = '0';
         marker.style.width = '2px';
         marker.style.background = 'rgba(255,255,255,0.4)';
-        marker.title = `Threshold: ${thresholdPct}%`;
+        marker.title = 'Threshold: 80%';
 
         barTrack.appendChild(barFill);
         barTrack.appendChild(marker);
@@ -307,13 +306,13 @@ function appendPipelineTrace(container, trace) {
     // Local Llama synthesis summary
     if (trace.local_llama) {
         const ll = trace.local_llama;
-        const summary = `Mode: ${ll.synthesis_mode}\nOutput: ${ll.extracted_before_fallback || '—'}\nFallback: ${ll.used_fallback ? `YES (${ll.fallback_reason})` : 'No'}`;
-        body.appendChild(makeSection('🦙 Local Llama Synthesis', summary));
+        const summary = `Mode: ${ll.synthesis_mode}\nOutput: ${ll.extracted_before_fallback || '-'}\nFallback: ${ll.used_fallback ? `YES (${ll.fallback_reason})` : 'No'}`;
+        body.appendChild(makeSection('Groq Synthesis', summary));
     }
 
     // Module masks (compact)
     if (trace.module_masks) {
-        body.appendChild(makeSection('🛡️ Module Masks', trace.module_masks));
+        body.appendChild(makeSection('Module Masks', trace.module_masks));
     }
 
     // Raw JSON (collapsible)
@@ -389,7 +388,7 @@ async function runBatchFromFile() {
             userApiKey = sessionStorage.getItem('pact_openai_key');
         }
 
-        const response = await fetch('http://localhost:8000/chat/batch-from-file', {
+        const response = await fetch(BACKEND_URL + '/chat/batch-from-file', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ queries: [], api_key: userApiKey })
@@ -478,7 +477,7 @@ if (apiKeyInput) {
         if (e.key === 'Enter') {
             const val = apiKeyInput.value.trim();
             if (val) {
-                updateKeyStatus('active', '✅');
+                updateKeyStatus('active', '');
                 apiKeyInput.blur();
             }
         }
@@ -497,7 +496,7 @@ fileInput.addEventListener('change', async (e) => {
     formData.append('file', file);
 
     try {
-        const response = await fetch('http://localhost:8000/extract/text', {
+        const response = await fetch(BACKEND_URL + '/extract/text', {
             method: 'POST',
             body: formData
         });
@@ -552,18 +551,18 @@ userInput.addEventListener('keydown', (e) => {
     const LOAD_DEADLINE_MS = Date.now() + 24 * 60 * 60 * 1000;
     const started = Date.now();
 
-    const msgId = appendMessage('bot', 'Local Llama: loading…');
+    const msgId = appendMessage('bot', 'Connecting to Groq backend...');
 
     const setText = (t, status = 'loading') => {
         const el = document.getElementById(msgId);
         if (el) el.textContent = t;
-        
+
         if (status === 'ready') {
-            setHeaderStatus('ready', 'Llama 3 Local Sanitizer Active');
+            setHeaderStatus('ready', 'Groq Sanitizer Active');
         } else if (status === 'error') {
-            setHeaderStatus('error', 'Llama 3 Unavailable');
+            setHeaderStatus('error', 'Groq Unavailable');
         } else {
-            setHeaderStatus('loading', 'Llama 3 Loading...');
+            setHeaderStatus('loading', 'Connecting to Groq...');
         }
     };
 
@@ -589,47 +588,64 @@ userInput.addEventListener('keydown', (e) => {
         return m > 0 ? `${m}m ${s}s` : `${s}s`;
     };
 
+    let consecutiveErrors = 0;
+    const MAX_CONSECUTIVE_ERRORS = 20; // ~50s of retries before giving up
+
     while (Date.now() < LOAD_DEADLINE_MS) {
         try {
-            const statusResp = await fetch('http://localhost:8000/local-llama/status');
+            const statusResp = await fetch(BACKEND_URL + '/local-llama/status');
+            if (!statusResp.ok) {
+                consecutiveErrors++;
+                if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                    setText('Groq backend status unavailable. (Check backend URL in config.js)', 'error');
+                    return;
+                }
+                setText(`Groq backend unreachable (${statusResp.status}) - retrying... (${fmtElapsed()})`, 'loading');
+                await new Promise((r) => setTimeout(r, POLL_MS));
+                continue;
+            }
             const st = await statusResp.json().catch(() => ({}));
+            consecutiveErrors = 0;
 
             if (st.loaded) {
-                setText('Local Llama: ready.', 'ready');
+                setText('Groq backend: ready.', 'ready');
                 return;
             }
 
             if (st.loading) {
-                setText(
-                    `Local Llama: loading… (${fmtElapsed()} elapsed, ${st.model_name || 'model'})`
-                );
+                setText(`Connecting to Groq... (${fmtElapsed()} elapsed)`);
                 await new Promise((r) => setTimeout(r, POLL_MS));
                 continue;
             }
 
             if (st.load_error) {
-                setText(`Local Llama: failed to load: ${st.load_error}`, 'error');
+                setText(`Groq backend failed: ${st.load_error}`, 'error');
                 return;
             }
 
             // Not loaded and not currently loading -> kick off loading.
-            await fetch('http://localhost:8000/local-llama/load', {
+            await fetch(BACKEND_URL + '/local-llama/load', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({}),
             }).catch(() => {});
 
-            setText(`Local Llama: starting load… (${fmtElapsed()} elapsed)`);
+            setText(`Connecting to Groq... (${fmtElapsed()} elapsed)`);
         } catch (e) {
-            console.error('Local Llama status error:', e);
-            setText('Local Llama: status unavailable. (Check backend.)', 'error');
-            return;
+            consecutiveErrors++;
+            console.error(`Local Llama status error (attempt ${consecutiveErrors}):`, e);
+            if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
+                setText('Local Llama: status unavailable. (Check backend.)', 'error');
+                return;
+            }
+            // Backend may still be cold-starting on Railway - keep retrying
+            setText(`Local Llama: backend starting up… (${fmtElapsed()} elapsed)`, 'loading');
         }
 
         await new Promise((r) => setTimeout(r, POLL_MS));
     }
 
     setText(
-        'Local Llama: UI wait limit (24h). Load may still run on the server — hard-refresh (Ctrl+Shift+R) to reload app.js, check GET /local-llama/status, or set LOCAL_LLM_LOAD_TIMEOUT_SEC on the backend.'
+        'Local Llama: UI wait limit (24h). Load may still run on the server - hard-refresh (Ctrl+Shift+R) to reload app.js, check GET /local-llama/status, or set LOCAL_LLM_LOAD_TIMEOUT_SEC on the backend.'
     );
 })();

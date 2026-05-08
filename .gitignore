@@ -1,8 +1,1 @@
-__pycache__/
-*.py[cod]
-*.pyc
-.env
-.venv/
-venv/
-hg.txt
-hg
+deployment_version/**/__pycache__

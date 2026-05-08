@@ -1,9 +1,11 @@
-spacy>=3.7.0
-fastapi
-uvicorn
-python-multipart
-requests
-pymupdf
+spacy==3.8.13
+fastapi==0.135.2
+uvicorn==0.42.0
+python-multipart==0.0.26
+requests==2.33.0
+pymupdf==1.27.2.2
+pydantic==2.12.5
+torch==2.11.0
 pytesseract
 Pillow
 python-dotenv

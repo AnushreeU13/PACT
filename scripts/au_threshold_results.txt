@@ -1,0 +1,20 @@
+====================================================================================================
+AU Score Evaluation | backbone=all-MiniLM-L6-v2 | thresholds=[0.2, 0.4, 0.6, 0.8]
+Probe: data/au_probe/minilm_probe.pt | b=-3.8187 | label_rule: redaction_ratio >= 0.30
+====================================================================================================
+#   Ambiguity              AU Score   th=0.20      th=0.40      th=0.60      th=0.80      Prompt
+----------------------------------------------------------------------------------------------------
+1   Very clear             0.0443     pass         pass         pass         pass         I am a Korean student living in Illinois, USA. I have a card
+2   Clear                  0.0331     pass         pass         pass         pass         I am from South Korea and currently live in Illinois. My ban
+3   Mostly clear           0.0360     pass         pass         pass         pass         I am an international student in the U.S. with a debit card.
+4   Moderate               0.0433     pass         pass         pass         pass         I am from an Asian country and living in one of the states i
+5   Moderate               0.1238     pass         pass         pass         pass         I live in the U.S. now and have a card [REDACTED_FINANCIAL].
+6   Somewhat ambiguous     0.2293     BLOCK        pass         pass         pass         I have [REDACTED_IDENTITY] in [REDACTED_LOCATION] with card 
+7   Ambiguous              0.2596     BLOCK        pass         pass         pass         I am [REDACTED_DEMOGRAPHIC] living in [REDACTED_LOCATION], a
+8   More ambiguous         0.2198     BLOCK        pass         pass         pass         I am [REDACTED_IDENTITY] from [REDACTED_LOCATION], and I nee
+9   Highly ambiguous       0.2134     BLOCK        pass         pass         pass         I have [REDACTED_FINANCIAL]. What should I do?
+10  Extremely ambiguous    0.3110     BLOCK        pass         pass         pass         How do I handle [REDACTED]?
+----------------------------------------------------------------------------------------------------
+BLOCK = score >= threshold | pass = score < threshold
+
+Score range: min=0.0331  max=0.3110  mean=0.1514

@@ -10,3 +10,5 @@ groq==0.13.1
 pytesseract
 Pillow
 python-dotenv
+sentence-transformers==5.0.0
+torch --index-url https://download.pytorch.org/whl/cpu

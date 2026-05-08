@@ -117,10 +117,12 @@ def load_model(
 # ---------------------------------------------------------------------------
 # AU-Probe state
 # ---------------------------------------------------------------------------
-_au_probe_weights: Optional[object] = None   # torch.Tensor  shape (hidden_dim,)
-_au_probe_bias:    Optional[object] = None   # torch.Tensor  scalar or (1,)
-_au_probe_layer:   int = 32
-_au_probe_loaded:  bool = False
+_au_probe_weights:   Optional[object] = None   # torch.Tensor  [4096] or [3, 4096]
+_au_probe_bias:      Optional[object] = None   # torch.Tensor  scalar or [3]
+_au_probe_layer:     int = 32
+_au_probe_loaded:    bool = False
+_au_probe_n_classes: int = 2               # 2 = binary, 3 = three-class
+_au_probe_type:      str = "binary"        # "binary" or "regression"
 
 
 def load_au_probe(probe_path: str, layer: int = 32) -> None:
@@ -132,7 +134,7 @@ def load_au_probe(probe_path: str, layer: int = 32) -> None:
       - nn.Linear state_dict  (keys like '0.weight' / '0.bias')
       - raw tensor  (weight only)
     """
-    global _au_probe_weights, _au_probe_bias, _au_probe_layer, _au_probe_loaded
+    global _au_probe_weights, _au_probe_bias, _au_probe_layer, _au_probe_loaded, _au_probe_n_classes, _au_probe_type
 
     try:
         import torch
@@ -160,26 +162,30 @@ def load_au_probe(probe_path: str, layer: int = 32) -> None:
 
             w_val = data[weight_key]
             if hasattr(w_val, 'float'):
-                _au_probe_weights = w_val.float().squeeze()
+                _au_probe_weights = w_val.float()
             elif hasattr(w_val, 'astype'):
-                _au_probe_weights = torch.from_numpy(w_val.astype('float32')).squeeze()
+                _au_probe_weights = torch.from_numpy(w_val.astype('float32'))
             else:
                 _au_probe_weights = torch.tensor(float(w_val), dtype=torch.float32)
 
             if bias_key is not None:
                 b_val = data[bias_key]
                 if hasattr(b_val, 'float'):
-                    _au_probe_bias = b_val.float().squeeze()
+                    _au_probe_bias = b_val.float()
                 elif hasattr(b_val, 'astype'):
-                    _au_probe_bias = torch.from_numpy(b_val.astype('float32')).squeeze()
+                    _au_probe_bias = torch.from_numpy(b_val.astype('float32'))
                 else:
                     _au_probe_bias = torch.tensor(float(b_val), dtype=torch.float32)
             else:
                 _au_probe_bias = None
 
+            _au_probe_n_classes = int(data.get("n_classes", 2 if _au_probe_weights.dim() == 1 else _au_probe_weights.shape[0]))
+            _au_probe_type = str(data.get("probe_type", "binary"))
+
         elif hasattr(data, "float"):
-            _au_probe_weights = data.float().squeeze()
-            _au_probe_bias    = None
+            _au_probe_weights   = data.float()
+            _au_probe_bias      = None
+            _au_probe_n_classes = 2
         else:
             print(f"WARNING: Unrecognised probe format ({type(data)}) – probe disabled.")
             return
@@ -188,7 +194,7 @@ def load_au_probe(probe_path: str, layer: int = 32) -> None:
         _au_probe_loaded = True
         print(
             f"AU probe loaded OK  path={probe_path}  layer={layer}  "
-            f"weight_shape={_au_probe_weights.shape}"
+            f"weight_shape={_au_probe_weights.shape}  type={_au_probe_type}"
         )
     except Exception as e:
         print(f"WARNING: Failed to load AU probe: {e} – probe disabled.")
@@ -233,20 +239,35 @@ def get_au_uncertainty(
 
         embedding = torch.tensor(embedding_list, dtype=torch.float32)
 
-        w         = _au_probe_weights.cpu()
-        probe_dim = int(w.shape[0]) if w.dim() == 1 else int(w.shape[-1])
+        w = _au_probe_weights.cpu()
+        # Align embedding dimension to probe's expected input dim
+        probe_dim = int(w.shape[-1])
         emb_dim   = int(embedding.shape[0])
-
         if emb_dim > probe_dim:
             embedding = embedding[:probe_dim]
         elif emb_dim < probe_dim:
             embedding = F.pad(embedding, (0, probe_dim - emb_dim))
 
-        logit = torch.dot(w, embedding)
-        if _au_probe_bias is not None:
-            logit = logit + _au_probe_bias.cpu()
+        if _au_probe_type == "regression":
+            # Ridge regression probe: score = clip(w · e + b, 0, 1)
+            raw = float(torch.dot(w.squeeze(), embedding))
+            if _au_probe_bias is not None:
+                raw += float(_au_probe_bias.cpu())
+            score = max(0.0, min(1.0, raw))
+        elif _au_probe_n_classes == 3:
+            # 3-class probe: score = 0.5*P(1) + 1.0*P(2)
+            logits = w @ embedding
+            if _au_probe_bias is not None:
+                logits = logits + _au_probe_bias.cpu()
+            probs = torch.softmax(logits, dim=0)
+            score = float(0.5 * probs[1] + 1.0 * probs[2])
+        else:
+            # Binary probe: score = sigmoid(w · e + b)
+            logit = torch.dot(w.squeeze(), embedding)
+            if _au_probe_bias is not None:
+                logit = logit + _au_probe_bias.cpu()
+            score = float(torch.sigmoid(logit).item())
 
-        score = float(torch.sigmoid(logit).item())
         print(f"DEBUG: AU uncertainty score = {score:.4f}")
         return score
 

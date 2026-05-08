@@ -76,7 +76,7 @@ Extracts plain text from uploaded files. Uses PyMuPDF for PDF files and pytesser
 
 ### `scripts/retrain_probe_llama.py`
 
-Retrains the AU-Probe using 4096-d embeddings from Ollama (llama3.1:8b). Builds a dataset of 488 prompts across clean and increasingly redacted variants. Labels are assigned by redaction ratio: prompts where 30% or more of words are redaction tags are labeled uncertain. Trains logistic regression and saves the learned `w` and `b` to `data/au_probe/linearprobe_layer_32.pt`. Requires Ollama to be running.
+Retrains the AU-Probe using 4096-d embeddings from Ollama (llama3.1:8b). Builds a paired dataset of 254 examples: each base prompt is paired with its redacted version, giving targets of 0.0 (original) and the actual redaction ratio (redacted). Trains a Ridge regression model so the probe directly predicts degree of redaction rather than binary presence. Saves `w`, `b`, and `probe_type="regression"` to `data/au_probe/linearprobe_layer_32.pt`. Requires Ollama to be running.
 
 ### `scripts/retrain_probe_minilm.py`
 
@@ -88,7 +88,7 @@ Test script for exercising the local pipeline manually without the frontend. Use
 
 ### `data/au_probe/linearprobe_layer_32.pt`
 
-Trained probe weights for the local version. Contains `w` (shape [4096]), `b`, and metadata. Trained on Llama 3.1:8b embeddings using the redaction-ratio labeling scheme. ROC-AUC: 0.9792.
+Trained probe weights for the local version. Contains `w` (shape [4096]), `b`, and `probe_type="regression"`. Trained on 254 paired examples using Ridge regression with continuous redaction-ratio targets. R²: 0.9586, MAE: 0.034.
 
 ### `data/au_probe/minilm_probe.pt`
 
@@ -274,13 +274,12 @@ This takes approximately 40 minutes on CPU (488 prompts × ~4s per embedding). T
 
 The AU-Probe gates whether a sanitized prompt should be forwarded to the cloud. After redaction, prompts sometimes lose so much context that the LLM cannot give a useful response. The probe detects this state and flags the prompt before wasting an API call.
 
-**How it works:** Ollama is called to produce a 4096-dimensional embedding for the synthesized prompt. The probe applies a learned linear transformation: `score = sigmoid(w · embedding + b)`, where `w` and `b` were fitted on 488 labeled prompts ranging from clean to fully redacted. A score close to 1 indicates the prompt is too degraded. The threshold is set by the user in the UI.
+**How it works:** Ollama is called to produce a 4096-dimensional embedding for the synthesized prompt. The probe applies a Ridge regression score: `score = clip(w · embedding + b, 0, 1)`, where `w` and `b` were fitted on 254 paired examples with continuous redaction-ratio targets. Each base prompt is paired with its redacted version; the original is assigned a target of 0.0 and the redacted version is assigned its actual redaction ratio (redacted characters / total characters). A score close to 1 indicates the prompt is too degraded. The threshold is set by the user in the UI.
 
 **Training results:**
-- Total prompts: 488 (303 certain, 185 uncertain)
-- Train / test split: 390 / 98
-- Accuracy: 0.93
-- ROC-AUC: 0.9792
+- Total examples: 254 (127 original prompts + 127 redacted counterparts)
+- R²: 0.9586
+- MAE: 0.034
 
 ---
 

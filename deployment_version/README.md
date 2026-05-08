@@ -1,14 +1,16 @@
 ﻿# PACT Deployment Version
 
-This folder contains a cloud-deployable version of PACT built for demonstration and online access. It is **not** the primary research version. The local version (in the repository root) runs entirely on-device using Ollama. This version replaces Ollama with Groq's hosted Llama API so that PACT can run on a server without requiring a GPU or a local model download. The backend runs on Railway; the frontend is served from GitHub Pages.
+This folder contains a cloud-hosted version of PACT built solely for user testing. It is **not** the primary research version and will not be published. The backend of PACT is intended to run locally on each user's hardware, keeping all data processing on-device. For the ease of recruiting testers without requiring local setup, this version was hosted on Railway using the Groq API as the inference backend.
+
+Routing user queries through cloud infrastructure for anything beyond the final LLM response is contrary to PACT's core privacy principle. Nonetheless, feedback gathered through this testing phase on what users found intuitive, what thresholds felt reasonable, and where the interface caused confusion directly informed design decisions in the research version of the system.
 
 ---
 
 ## Why a Deployment Version Exists
 
-The local version requires the user to have Ollama installed and a 4.7 GB model pulled - which is not practical for a live demo or for reviewers who just want to see PACT in action. This version removes that barrier. Anyone with a browser can reach the frontend and interact with PACT without any local setup.
+The local version requires the user to have Ollama installed and a 4.7 GB model pulled, which is not practical for user testing without a controlled setup. This version removes that barrier so testers could interact with PACT through a browser without any local configuration.
 
-The tradeoff is that text generation and health module detection now go to Groq's servers instead of the user's machine. This is a deliberate compromise accepted for demo purposes only.
+The tradeoff is that text generation and health module detection route through Groq's servers instead of the user's machine. This is a deliberate compromise accepted for testing purposes only.
 
 ![PACT Architecture](../image/pact_architecture.png)
 
@@ -24,12 +26,12 @@ The local version talks to a locally running Ollama instance at `http://localhos
 
 ### 2. AU-Probe: Llama Embeddings → MiniLM Embeddings
 
-The local version fetches 4096-d embeddings from Ollama to score prompts. Groq does not expose an embeddings endpoint, so the probe was retrained on `all-MiniLM-L6-v2` (384-d, runs in-process via `sentence-transformers`). The linear classifier was retrained on the same 488-prompt dataset using redaction-ratio labels.
+The local version fetches 4096-d embeddings from Ollama to score prompts. Groq does not expose an embeddings endpoint, so the probe was retrained on `all-MiniLM-L6-v2` (384-d, runs in-process via `sentence-transformers`). The probe uses a linear classifier trained on the same paired dataset with redaction-ratio labels.
 
 **Affected file:** `modules/local_llama.py` - probe now loads MiniLM weights and uses `sentence_transformers.SentenceTransformer` instead of Ollama.
 
 **Probe training results (MiniLM):**
-- Accuracy: 0.93 - ROC-AUC: 0.9818
+- Accuracy: 0.93, ROC-AUC: 0.9818
 
 ### 3. Synthesis Prompt: Original Query Removed
 

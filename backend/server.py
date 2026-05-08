@@ -5,9 +5,12 @@ import uvicorn
 import sys
 import os
 import json
+import re
 import requests
 import threading
 import time
+
+_REDACTED_TAG_RE = re.compile(r"\[REDACTED[^\]]*\]", re.IGNORECASE)
 
 # Import our financial detector
 sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
@@ -238,20 +241,26 @@ class QueriesFile(BaseModel):
 
 def _process_chat(request: ChatRequest) -> dict:
     original_query = request.query
+    settings_dict = request.settings.model_dump()
+
+    # Health module calls local_llama.generate_text(); ensure model is loaded first.
+    if settings_dict.get("health"):
+        _ensure_local_llama_ready()
 
     candidates, module_masks, financial_candidate = collect_pipeline_inputs(
-        original_query, request.settings.model_dump()
+        original_query, settings_dict
     )
 
     final_prompt, llama_trace = _local_synthesize_final_prompt(
         original_query=original_query,
         candidates=candidates,
-        privacy_preferences=request.settings.model_dump(),
+        privacy_preferences=settings_dict,
         financial_candidate=financial_candidate,
     )
 
     au_score = 0.0
-    if USE_LOCAL_LLAMA_FOR_SYNTHESIS:
+    has_redaction = bool(_REDACTED_TAG_RE.search(final_prompt))
+    if USE_LOCAL_LLAMA_FOR_SYNTHESIS and has_redaction:
         try:
             au_score = local_llama.get_au_uncertainty(final_prompt)
         except Exception as e:
@@ -276,7 +285,7 @@ def _process_chat(request: ChatRequest) -> dict:
     pipeline_trace = {
         "module_masks": module_masks,
         "candidates_for_llama": candidates,
-        "privacy_preferences": request.settings.model_dump(),
+        "privacy_preferences": settings_dict,
         "local_llama": llama_trace,
         "au_probe": {
             "score": round(au_score, 4),

@@ -1,7 +1,7 @@
 """
 Retrain the AU-Probe linear classifier using Llama 3.1:8b embeddings from Ollama.
 
-Labels come from redaction density (same rule as retrain_probe_minilm.py):
+Labels come from redaction density:
   - ratio = count([REDACTED...] tokens) / total words
   - label = 1 (uncertain) if ratio >= UNCERTAIN_THRESHOLD else 0 (certain)
 
@@ -26,18 +26,18 @@ import numpy as np
 import requests
 import torch
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, roc_auc_score
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-ROOT            = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OUTPUT_PROBE    = os.path.join(ROOT, "data", "au_probe", "linearprobe_layer_32.pt")
-OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
-OLLAMA_MODEL    = os.environ.get("LOCAL_LLM_MODEL_NAME", "llama3.1:8b")
-
+ROOT               = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUTPUT_PROBE       = os.path.join(ROOT, "data", "au_probe", "linearprobe_layer_32.pt")
+OLLAMA_BASE_URL    = os.environ.get("OLLAMA_BASE_URL", "http://localhost:11434")
+OLLAMA_MODEL       = os.environ.get("LOCAL_LLM_MODEL_NAME", "llama3.1:8b")
 UNCERTAIN_THRESHOLD = 0.30
+
 REDACTED_RE = re.compile(r'\[REDACTED[^\]]*\]', re.IGNORECASE)
 
 # ---------------------------------------------------------------------------
@@ -121,12 +121,13 @@ def compute_ratio(text: str) -> float:
 
 
 def build_dataset(rng: random.Random) -> tuple[list[str], list[int]]:
-    prompts, labels = [], []
+    prompts: list[str] = []
+    labels: list[int] = []
 
     def add(text: str) -> None:
-        actual = compute_ratio(text)
         prompts.append(text)
-        labels.append(1 if actual >= UNCERTAIN_THRESHOLD else 0)
+        ratio = compute_ratio(text)
+        labels.append(1 if ratio >= UNCERTAIN_THRESHOLD else 0)
 
     for p in CLEAN_PROMPTS:
         add(p)
@@ -191,25 +192,23 @@ def main():
         print("  Make sure Ollama is running: ollama serve")
         return
 
-    print("\n=== Step 2: Building dataset with redaction-ratio labels ===")
+    print("\n=== Step 2: Building dataset (binary labels: uncertain if ratio >= 0.30) ===")
     rng = random.Random(42)
     prompts, labels = build_dataset(rng)
-    n_certain   = labels.count(0)
-    n_uncertain = labels.count(1)
+    y_arr = np.array(labels)
     print(f"  Total: {len(prompts)} prompts")
-    print(f"  Certain (0): {n_certain}  |  Uncertain (1): {n_uncertain}")
+    print(f"  Certain (0): {(y_arr == 0).sum()}  Uncertain (1): {(y_arr == 1).sum()}")
 
     print(f"\n=== Step 3: Fetching Llama embeddings from Ollama ===")
     print(f"  Model: {OLLAMA_MODEL}  |  This will take several minutes...")
     embeddings = []
-    valid_prompts, valid_labels = [], []
+    valid_labels = []
     t0 = time.time()
 
     for i, (text, label) in enumerate(zip(prompts, labels)):
         emb = get_ollama_embedding(text)
         if emb is not None:
             embeddings.append(emb)
-            valid_prompts.append(text)
             valid_labels.append(label)
         elapsed = time.time() - t0
         avg = elapsed / (i + 1)
@@ -228,28 +227,25 @@ def main():
     emb_dim = len(embeddings[0])
     print(f"  Embedding dimension: {emb_dim}")
 
-    print(f"\n=== Step 4: Training logistic regression ===")
+    print(f"\n=== Step 4: Training logistic regression (binary labels) ===")
     X = np.array(embeddings, dtype=np.float32)
-    y = np.array(valid_labels)
+    y = np.array(valid_labels, dtype=np.int32)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
     print(f"  Train: {len(X_train)}  Test: {len(X_test)}")
 
-    clf = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
+    clf = LogisticRegression(C=1.0, max_iter=1000, solver="lbfgs")
     clf.fit(X_train, y_train)
 
-    y_pred = clf.predict(X_test)
+    accuracy = clf.score(X_test, y_test)
     y_prob = clf.predict_proba(X_test)[:, 1]
+    roc_auc = roc_auc_score(y_test, y_prob)
+    print(f"  Accuracy: {accuracy:.4f}  ROC-AUC: {roc_auc:.4f}")
 
-    print("\n  Classification report:")
-    print(classification_report(y_test, y_pred, target_names=["certain", "uncertain"]))
-    auc = roc_auc_score(y_test, y_prob)
-    print(f"  ROC-AUC: {auc:.4f}")
-
-    print(f"\n=== Step 5: Spot-checking scores ===")
-    w_t = torch.tensor(clf.coef_[0], dtype=torch.float32)
+    print(f"\n=== Step 5: Spot-checking scores (sigmoid of logit) ===")
+    w_t = torch.tensor(clf.coef_, dtype=torch.float32).squeeze()
     b_t = float(clf.intercept_[0])
 
     test_cases = [
@@ -267,7 +263,6 @@ def main():
          "[REDACTED NAME] [REDACTED LOCATION] [REDACTED ID] [REDACTED FINANCIAL] [REDACTED HEALTH] [REDACTED DATE]."),
     ]
 
-    import math
     for label, text in test_cases:
         emb = get_ollama_embedding(text)
         if emb is None:
@@ -277,10 +272,10 @@ def main():
         if emb_t.shape[0] != w_t.shape[0]:
             emb_t = emb_t[:w_t.shape[0]]
         logit = torch.dot(w_t, emb_t).item() + b_t
-        score = 1.0 / (1.0 + math.exp(-logit))
+        score = float(torch.sigmoid(torch.tensor(logit)).item())
         ratio = compute_ratio(text)
         print(f"  [{label}]")
-        print(f"    ratio={ratio:.2f}  score={score:.4f}  {'UNCERTAIN (blocked)' if score >= 0.5 else 'CERTAIN (passes)'}")
+        print(f"    actual_ratio={ratio:.2f}  sigmoid_score={score:.4f}")
 
     print(f"\n=== Step 6: Saving probe ===")
     probe_data = {
@@ -288,18 +283,19 @@ def main():
         "b":          b_t,
         "layer":      32,
         "backbone":   OLLAMA_MODEL,
-        "label_rule": f"uncertain if redaction_ratio >= {UNCERTAIN_THRESHOLD}",
-        "best_lambda": 1.0 / clf.C,
+        "target":     "binary (uncertain if redaction_ratio >= 0.30)",
+        "model_type": "LogisticRegression",
         "n_train":    len(X_train),
         "n_test":     len(X_test),
-        "roc_auc":    round(auc, 4),
+        "accuracy":   round(float(accuracy), 4),
+        "roc_auc":    round(float(roc_auc), 4),
         "emb_dim":    emb_dim,
     }
     os.makedirs(os.path.dirname(OUTPUT_PROBE), exist_ok=True)
     torch.save(probe_data, OUTPUT_PROBE)
     print(f"  Saved: {OUTPUT_PROBE}")
     print(f"  w shape: {w_t.shape}  b: {b_t:.4f}  emb_dim: {emb_dim}")
-    print(f"  ROC-AUC: {auc:.4f}")
+    print(f"  Accuracy: {accuracy:.4f}  ROC-AUC: {roc_auc:.4f}")
     print("\nDone.")
 
 

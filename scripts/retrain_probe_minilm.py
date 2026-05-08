@@ -1,12 +1,12 @@
 """
-Retrain the AU-Probe linear classifier on sentence-transformer embeddings.
+Retrain the AU-Probe using logistic regression on sentence-transformer embeddings.
 
-Labels come from redaction density (not the original Llama probe):
+Labels come from redaction density:
   - ratio = count([REDACTED...] tokens) / total words
   - label = 1 (uncertain) if ratio >= UNCERTAIN_THRESHOLD else 0 (certain)
 
-This makes the probe learn: does this text have so many redacted tokens
-that a cloud LLM cannot give a meaningful response?
+The probe outputs sigmoid(w . embedding + b) as the AU score.
+The user-set threshold in the UI is compared against this score at inference time.
 
 Run from repo root:
     python scripts/retrain_probe_minilm.py
@@ -22,17 +22,17 @@ import numpy as np
 import torch
 from sentence_transformers import SentenceTransformer
 from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report, roc_auc_score
+from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split
 
 # ---------------------------------------------------------------------------
 # Config
 # ---------------------------------------------------------------------------
-ROOT            = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
-OUTPUT_PROBE    = os.path.join(ROOT, "data", "au_probe", "minilm_probe.pt")
-ST_MODEL        = "all-MiniLM-L6-v2"
-UNCERTAIN_THRESHOLD = 0.30   # redaction ratio at which prompt becomes too degraded
-REDACTED_RE     = re.compile(r'\[REDACTED[^\]]*\]', re.IGNORECASE)
+ROOT               = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+OUTPUT_PROBE       = os.path.join(ROOT, "data", "au_probe", "minilm_probe.pt")
+ST_MODEL           = "all-MiniLM-L6-v2"
+REDACTED_RE        = re.compile(r'\[REDACTED[^\]]*\]', re.IGNORECASE)
+UNCERTAIN_THRESHOLD = 0.30
 
 # ---------------------------------------------------------------------------
 # Prompt bank
@@ -92,7 +92,6 @@ REDACTION_TAGS = [
 
 
 def redact_at_ratio(text: str, target_ratio: float, rng: random.Random) -> str:
-    """Replace a fraction of words with redaction tags to reach target_ratio."""
     words = text.split()
     n = len(words)
     n_redact = int(round(target_ratio * n))
@@ -113,23 +112,21 @@ def compute_ratio(text: str) -> float:
 
 
 def build_dataset(rng: random.Random) -> tuple[list[str], list[int]]:
-    prompts, labels = [], []
+    prompts: list[str] = []
+    labels: list[int] = []
 
     def add(text: str) -> None:
-        actual = compute_ratio(text)
         prompts.append(text)
-        labels.append(1 if actual >= UNCERTAIN_THRESHOLD else 0)
+        ratio = compute_ratio(text)
+        labels.append(1 if ratio >= UNCERTAIN_THRESHOLD else 0)
 
-    # Clean originals (ratio = 0)
     for p in CLEAN_PROMPTS:
         add(p)
 
-    # All redaction levels — label computed from actual ratio after redaction
     for p in CLEAN_PROMPTS:
         for ratio in [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.40, 0.50, 0.60, 0.75, 0.90]:
             add(redact_at_ratio(p, ratio, rng))
 
-    # Fully synthetic heavily-redacted templates
     heavy_templates = [
         "[REDACTED NAME] [REDACTED LOCATION] [REDACTED ID] [REDACTED FINANCIAL] [REDACTED HEALTH] [REDACTED DATE].",
         "My [REDACTED NAME] is [REDACTED ID] at [REDACTED LOCATION] with [REDACTED FINANCIAL] and [REDACTED HEALTH].",
@@ -152,39 +149,35 @@ def build_dataset(rng: random.Random) -> tuple[list[str], list[int]]:
 def main():
     rng = random.Random(42)
 
-    print("=== Step 1: Building dataset with redaction-ratio labels ===")
+    print("=== Step 1: Building dataset (binary labels: uncertain if ratio >= 0.30) ===")
     prompts, labels = build_dataset(rng)
-    n_certain   = labels.count(0)
-    n_uncertain = labels.count(1)
+    y_arr = np.array(labels)
     print(f"  Total: {len(prompts)} prompts")
-    print(f"  Certain (0): {n_certain}  |  Uncertain (1): {n_uncertain}")
+    print(f"  Certain (0): {(y_arr == 0).sum()}  Uncertain (1): {(y_arr == 1).sum()}")
 
     print(f"\n=== Step 2: Getting sentence-transformer embeddings ===")
     st_model = SentenceTransformer(ST_MODEL)
     embeddings = st_model.encode(prompts, show_progress_bar=True, normalize_embeddings=True)
     print(f"  Embeddings shape: {embeddings.shape}")
 
-    print(f"\n=== Step 3: Training logistic regression ===")
+    print(f"\n=== Step 3: Training logistic regression (binary labels) ===")
     X = embeddings
-    y = np.array(labels)
+    y = np.array(labels, dtype=np.int32)
 
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42, stratify=y
     )
     print(f"  Train: {len(X_train)}  Test: {len(X_test)}")
 
-    clf = LogisticRegression(C=1.0, max_iter=1000, random_state=42)
+    clf = LogisticRegression(C=1.0, max_iter=1000, solver="lbfgs")
     clf.fit(X_train, y_train)
 
-    y_pred = clf.predict(X_test)
+    accuracy = clf.score(X_test, y_test)
     y_prob = clf.predict_proba(X_test)[:, 1]
+    roc_auc = roc_auc_score(y_test, y_prob)
+    print(f"  Accuracy: {accuracy:.4f}  ROC-AUC: {roc_auc:.4f}")
 
-    print("\n  Classification report:")
-    print(classification_report(y_test, y_pred, target_names=["certain", "uncertain"]))
-    auc = roc_auc_score(y_test, y_prob)
-    print(f"  ROC-AUC: {auc:.4f}")
-
-    print(f"\n=== Step 4: Spot-checking scores ===")
+    print(f"\n=== Step 4: Spot-checking scores (sigmoid of logit) ===")
     test_cases = [
         ("Clean - general question",
          "What is the best way to learn Python programming?"),
@@ -199,17 +192,16 @@ def main():
         ("Fully redacted",
          "[REDACTED NAME] [REDACTED LOCATION] [REDACTED ID] [REDACTED FINANCIAL] [REDACTED HEALTH] [REDACTED DATE]."),
     ]
-    w_t = torch.tensor(clf.coef_[0], dtype=torch.float32)
+    w_t = torch.tensor(clf.coef_, dtype=torch.float32).squeeze()
     b_t = float(clf.intercept_[0])
     for label, text in test_cases:
         emb = st_model.encode(text, normalize_embeddings=True, show_progress_bar=False)
         emb_t = torch.tensor(emb, dtype=torch.float32)
-        import math
         logit = torch.dot(w_t, emb_t).item() + b_t
-        score = 1.0 / (1.0 + math.exp(-logit))
+        score = float(torch.sigmoid(torch.tensor(logit)).item())
         ratio = compute_ratio(text)
         print(f"  [{label}]")
-        print(f"    ratio={ratio:.2f}  score={score:.4f}  {'UNCERTAIN (blocked)' if score >= 0.5 else 'CERTAIN (passes)'}")
+        print(f"    actual_ratio={ratio:.2f}  sigmoid_score={score:.4f}")
 
     print(f"\n=== Step 5: Saving probe ===")
     probe_data = {
@@ -217,11 +209,12 @@ def main():
         "b":          b_t,
         "layer":      0,
         "backbone":   ST_MODEL,
-        "label_rule": f"uncertain if redaction_ratio >= {UNCERTAIN_THRESHOLD}",
-        "best_lambda": 1.0 / clf.C,
+        "target":     "binary (uncertain if redaction_ratio >= 0.30)",
+        "model_type": "LogisticRegression",
         "n_train":    len(X_train),
         "n_test":     len(X_test),
-        "roc_auc":    round(auc, 4),
+        "accuracy":   round(float(accuracy), 4),
+        "roc_auc":    round(float(roc_auc), 4),
     }
     os.makedirs(os.path.dirname(OUTPUT_PROBE), exist_ok=True)
     torch.save(probe_data, OUTPUT_PROBE)

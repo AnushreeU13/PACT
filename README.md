@@ -1,4 +1,4 @@
-﻿# PACT: Privacy-Aware Cloud Transmission
+﻿# PACT: Personalized Assessment & Control for Trustworthy LLM Privacy
 
 ## What Is PACT?
 

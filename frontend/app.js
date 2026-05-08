@@ -16,7 +16,7 @@ if (apiKeyInput) {
     const savedKey = sessionStorage.getItem('pact_openai_key');
     if (savedKey) {
         apiKeyInput.value = savedKey;
-        updateKeyStatus('active', '✅');
+        updateKeyStatus('active', '');
         console.log("DEBUG: Restored API key from session storage.");
     }
 }
@@ -53,7 +53,7 @@ async function sendMessage() {
     }
 
     // Add user message to UI (show a shorter version if it's a huge doc)
-    const displayMessage = currentAttachmentName ? `📎 ${currentAttachmentName}\n${text}` : text;
+    const displayMessage = currentAttachmentName ? `[Attached: ${currentAttachmentName}]\n${text}` : text;
     appendMessage('user', displayMessage);
     userInput.value = '';
     userInput.style.height = 'auto';
@@ -171,7 +171,6 @@ function appendPipelineTrace(container, trace) {
         const isUncertain = auProbe.triggered;
         const badgeColor = isUncertain ? '#ef4444' : '#22d3ee';
         const badgeBg   = isUncertain ? 'rgba(239,68,68,0.15)' : 'rgba(34,211,238,0.15)';
-        const icon      = isUncertain ? '⚠️' : '✅';
         badgeHtml = `<span style="
             background:${badgeBg};
             color:${badgeColor};
@@ -182,10 +181,10 @@ function appendPipelineTrace(container, trace) {
             font-weight:700;
             letter-spacing:0.02em;
             white-space:nowrap;
-        ">${icon} AU Score: ${score}% — ${auProbe.status.toUpperCase()}</span>`;
+        ">AU Uncertainty: ${score}%</span>`;
     }
 
-    sum.innerHTML = `<span>🔍 Pipeline: module masks → Local Llama → GPT</span>${badgeHtml}`;
+    sum.innerHTML = `<span>Pipeline: module masks → Local Llama → GPT</span>${badgeHtml}`;
 
     const body = document.createElement('div');
     body.style.marginTop = '10px';
@@ -239,7 +238,7 @@ function appendPipelineTrace(container, trace) {
         h.style.marginBottom = '6px';
         h.style.textTransform = 'uppercase';
         h.style.letterSpacing = '0.05em';
-        h.textContent = '🧠 AU-Probe Uncertainty';
+        h.textContent = 'AU-Probe Uncertainty';
         scoreBar.appendChild(h);
 
         // Score bar
@@ -308,12 +307,12 @@ function appendPipelineTrace(container, trace) {
     if (trace.local_llama) {
         const ll = trace.local_llama;
         const summary = `Mode: ${ll.synthesis_mode}\nOutput: ${ll.extracted_before_fallback || '—'}\nFallback: ${ll.used_fallback ? `YES (${ll.fallback_reason})` : 'No'}`;
-        body.appendChild(makeSection('🦙 Local Llama Synthesis', summary));
+        body.appendChild(makeSection('Local Llama Synthesis', summary));
     }
 
     // Module masks (compact)
     if (trace.module_masks) {
-        body.appendChild(makeSection('🛡️ Module Masks', trace.module_masks));
+        body.appendChild(makeSection('Module Masks', trace.module_masks));
     }
 
     // Raw JSON (collapsible)
@@ -478,7 +477,7 @@ if (apiKeyInput) {
         if (e.key === 'Enter') {
             const val = apiKeyInput.value.trim();
             if (val) {
-                updateKeyStatus('active', '✅');
+                updateKeyStatus('active', '');
                 apiKeyInput.blur();
             }
         }

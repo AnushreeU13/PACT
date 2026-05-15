@@ -6,6 +6,7 @@ requests==2.33.0
 pymupdf==1.27.2.2
 pydantic==2.12.5
 torch==2.11.0
+scikit-learn
 pytesseract
 Pillow
 python-dotenv

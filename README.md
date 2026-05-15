@@ -216,6 +216,24 @@ python -m spacy download en_core_web_sm
 
 ---
 
+### Step 5b - Install Tesseract OCR (required for image file uploads)
+
+Tesseract is a system-level dependency for `pytesseract`. If you do not need image or scanned PDF support you can skip this step.
+
+**Windows:** Download and run the installer from [https://github.com/UB-Mannheim/tesseract/wiki](https://github.com/UB-Mannheim/tesseract/wiki). After installation, ensure the Tesseract executable is on your system PATH.
+
+**macOS:**
+```bash
+brew install tesseract
+```
+
+**Linux:**
+```bash
+sudo apt install tesseract-ocr
+```
+
+---
+
 ### Step 6 - Start the backend
 
 ```bash
